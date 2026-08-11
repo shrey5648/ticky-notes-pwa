@@ -1,0 +1,211 @@
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Note, SyncItem } from '@/lib/types';
+import {
+  getLocalNotes,
+  saveLocalNotes,
+  saveSingleLocalNote,
+  deleteLocalNote,
+  addPendingSync,
+  processOfflineQueue,
+} from '@/lib/db';
+
+export function useNotes(userId?: string) {
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [isOnline, setIsOnline] = useState<boolean>(true);
+  const [syncing, setSyncing] = useState<boolean>(false);
+
+  // Sync handler for processing offline queue items
+  const syncQueueItemHandler = useCallback(async (item: SyncItem): Promise<boolean> => {
+    try {
+      if (item.action === 'create') {
+        const res = await fetch('/api/notes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(item.data),
+        });
+        return res.ok;
+      } else if (item.action === 'update') {
+        if (!item.data.id) return true;
+        const res = await fetch(`/api/notes/${item.data.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(item.data),
+        });
+        return res.ok;
+      } else if (item.action === 'delete') {
+        if (!item.data.id) return true;
+        const res = await fetch(`/api/notes/${item.data.id}`, {
+          method: 'DELETE',
+        });
+        return res.ok;
+      }
+      return true;
+    } catch (err) {
+      console.error('Failed to sync queue item:', err);
+      return false;
+    }
+  }, []);
+
+  const triggerSync = useCallback(async () => {
+    if (!navigator.onLine) return;
+    setSyncing(true);
+    await processOfflineQueue(syncQueueItemHandler);
+    setSyncing(false);
+  }, [syncQueueItemHandler]);
+
+  // Network online/offline event listeners
+  useEffect(() => {
+    setIsOnline(navigator.onLine);
+    const handleOnline = () => {
+      setIsOnline(true);
+      triggerSync();
+    };
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [triggerSync]);
+
+  // Load local notes & fetch API notes
+  const fetchNotes = useCallback(async () => {
+    setLoading(true);
+    // Step 1: Load from local IndexedDB instantly
+    const cached = await getLocalNotes();
+    if (cached.length > 0) {
+      setNotes(cached);
+    }
+
+    // Step 2: Fetch remote API if online
+    if (navigator.onLine) {
+      try {
+        const res = await fetch('/api/notes');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.notes) {
+            setNotes(data.notes);
+            await saveLocalNotes(data.notes);
+          }
+        }
+      } catch (err) {
+        console.error('Remote fetch error, falling back to local cache:', err);
+      }
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (userId) {
+      fetchNotes();
+    }
+  }, [userId, fetchNotes]);
+
+  // Create Note
+  const createNote = async (partialNote?: Partial<Note>): Promise<Note> => {
+    const tempId = `note-${Date.now()}`;
+    const newNote: Note = {
+      id: tempId,
+      owner_id: userId || 'local-user',
+      title: partialNote?.title || '📝 New Sticky Note',
+      content: partialNote?.content || '<p>Write your thoughts here...</p>',
+      color: partialNote?.color || '#FFEB3B',
+      position_x: partialNote?.position_x ?? Math.floor(Math.random() * 200) + 80,
+      position_y: partialNote?.position_y ?? Math.floor(Math.random() * 200) + 80,
+      is_pinned: false,
+      is_archived: false,
+      z_index: Date.now() % 10000,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      permission: 'owner',
+    };
+
+    // Optimistic UI update
+    setNotes((prev) => [newNote, ...prev]);
+    await saveSingleLocalNote(newNote);
+
+    if (navigator.onLine) {
+      try {
+        const res = await fetch('/api/notes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newNote),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          // Replace temp note with server note
+          setNotes((prev) => prev.map((n) => (n.id === tempId ? data.note : n)));
+          await deleteLocalNote(tempId);
+          await saveSingleLocalNote(data.note);
+          return data.note;
+        }
+      } catch (err) {
+        console.error('Create note network error, queueing offline:', err);
+      }
+    }
+
+    // Queue for sync if offline or request failed
+    await addPendingSync('create', newNote);
+    return newNote;
+  };
+
+  // Update Note (Optimistic)
+  const updateNote = async (id: string, updates: Partial<Note>) => {
+    setNotes((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, ...updates, updated_at: new Date().toISOString() } : n))
+    );
+
+    const existing = notes.find((n) => n.id === id);
+    if (existing) {
+      const updated = { ...existing, ...updates, updated_at: new Date().toISOString() };
+      await saveSingleLocalNote(updated);
+    }
+
+    if (navigator.onLine) {
+      try {
+        await fetch(`/api/notes/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+        });
+      } catch (err) {
+        console.error('Update note network error, queueing offline:', err);
+        await addPendingSync('update', { id, ...updates });
+      }
+    } else {
+      await addPendingSync('update', { id, ...updates });
+    }
+  };
+
+  // Delete Note (Optimistic)
+  const deleteNote = async (id: string) => {
+    setNotes((prev) => prev.filter((n) => n.id !== id));
+    await deleteLocalNote(id);
+
+    if (navigator.onLine) {
+      try {
+        await fetch(`/api/notes/${id}`, { method: 'DELETE' });
+      } catch (err) {
+        console.error('Delete note network error, queueing offline:', err);
+        await addPendingSync('delete', { id });
+      }
+    } else {
+      await addPendingSync('delete', { id });
+    }
+  };
+
+  return {
+    notes,
+    loading,
+    isOnline,
+    syncing,
+    createNote,
+    updateNote,
+    deleteNote,
+    refetchNotes: fetchNotes,
+  };
+}
