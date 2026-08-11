@@ -76,3 +76,34 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
+
+// Push & Notification Click Handlers
+self.addEventListener('push', (event) => {
+  const data = event.data ? event.data.json() : { title: 'Sticky Notes Reminder', body: 'You have a note due date!' };
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      data: data.data || {},
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const urlToOpen = (event.notification.data && event.notification.data.url) || '/';
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      for (let client of windowClients) {
+        if (client.url === urlToOpen && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow(urlToOpen);
+      }
+    })
+  );
+});
+

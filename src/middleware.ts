@@ -18,29 +18,29 @@ export function middleware(request: NextRequest) {
   // Control referrer information leakage
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
 
-  // Restrict browser features
+  // Restrict browser features while allowing microphone for voice dictation
   response.headers.set(
     'Permissions-Policy',
-    'camera=(), microphone=(), geolocation=(), payment=()'
+    'camera=(), microphone=(self), geolocation=(), payment=()'
   );
 
   // XSS protection (legacy browsers)
   response.headers.set('X-XSS-Protection', '1; mode=block');
 
-  // Content Security Policy — strict but allows inline styles for the rich text editor
+  // Content Security Policy — allows inline scripts, unsafe-eval for Next.js, and Google Fonts
   response.headers.set(
     'Content-Security-Policy',
     [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline'",       // inline scripts for theme/SW
-      "style-src 'self' 'unsafe-inline'",         // inline styles for Tiptap editor
-      "img-src 'self' data: blob:",               // data URIs for canvas export
-      "font-src 'self'",
-      "connect-src 'self' https://*.supabase.co",  // API calls to Supabase
-      "frame-ancestors 'none'",                    // no embedding
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' data: https://fonts.gstatic.com",
+      "img-src 'self' data: blob: https:",
+      "connect-src 'self' https://*.supabase.co ws: wss:",
+      "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
-      "worker-src 'self'",                         // service worker
+      "worker-src 'self' blob:",
     ].join('; ')
   );
 

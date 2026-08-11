@@ -14,7 +14,29 @@ import Placeholder from '@tiptap/extension-placeholder';
 import Link from '@tiptap/extension-link';
 import Subscript from '@tiptap/extension-subscript';
 import Superscript from '@tiptap/extension-superscript';
-import { Extension } from '@tiptap/core';
+import { Extension, Node, mergeAttributes } from '@tiptap/core';
+
+// Custom TipTap Extension for Image Node
+const TiptapImageNode = Node.create({
+  name: 'image',
+  group: 'block',
+  selectable: true,
+  draggable: true,
+  addAttributes() {
+    return {
+      src: { default: null },
+      alt: { default: null },
+      title: { default: null },
+      style: { default: 'max-width: 100%; border-radius: 8px; margin: 8px 0;' },
+    };
+  },
+  parseHTML() {
+    return [{ tag: 'img[src]' }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ['img', mergeAttributes({ style: 'max-width: 100%; border-radius: 8px; margin: 8px 0;' }, HTMLAttributes)];
+  },
+});
 import { Note } from '@/lib/types';
 import {
   Bold,
@@ -54,7 +76,11 @@ import {
   Grid,
   Sparkles,
   Upload,
+  Mic,
+  MicOff,
 } from 'lucide-react';
+import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
+import { AIAssistantMenu } from '@/components/Notes/AIAssistantMenu';
 
 // Custom TipTap Extension for Font Size attribute
 const FontSize = Extension.create({
@@ -173,20 +199,75 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       }),
       Subscript,
       Superscript,
+      TiptapImageNode,
     ],
     content: note?.content || '',
     immediatelyRender: false,
   });
 
+  const lastSpeechTextRef = useRef('');
+
+  const handleSpeechResult = useCallback(
+    (currentSpeechText: string, isFinal: boolean) => {
+      if (!editor || editor.isDestroyed || !currentSpeechText) return;
+
+      const prev = lastSpeechTextRef.current;
+      let delta = '';
+
+      if (currentSpeechText.startsWith(prev)) {
+        delta = currentSpeechText.slice(prev.length);
+      } else {
+        delta = ` ${currentSpeechText}`;
+      }
+
+      if (delta) {
+        editor.commands.insertContent(delta);
+        lastSpeechTextRef.current = currentSpeechText;
+      }
+
+      if (isFinal) {
+        lastSpeechTextRef.current = '';
+      }
+    },
+    [editor]
+  );
+
+  const {
+    isListening,
+    isSupported: isSpeechSupported,
+    toggleListening,
+    interimTranscript,
+    error: speechError,
+  } = useSpeechRecognition({ onResult: handleSpeechResult });
+
+  const handleApplyAISummary = (summaryHtml: string) => {
+    if (editor) {
+      editor.chain().focus().insertContent(summaryHtml).run();
+    }
+  };
+
+  const handleApplyAITags = (newTags: string[]) => {
+    setTags((prev) => Array.from(new Set([...prev, ...newTags])));
+  };
+
+  const handleApplyAIIdeas = (ideasHtml: string) => {
+    if (editor) {
+      editor.chain().focus().insertContent(ideasHtml).run();
+    }
+  };
+
+  const currentNoteIdRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (note) {
+    if (note && note.id !== currentNoteIdRef.current) {
+      currentNoteIdRef.current = note.id;
       setTitle(note.title || '');
       setColor(note.color || '#FFEB3B');
       setDueDate(note.due_date || '');
       setTags(note.tags || []);
       setStyleVariant(note.style_variant || 'default');
       setFontFamily((note.font_family as any) || 'poppins');
-      if (editor && editor.getHTML() !== note.content) {
+      if (editor) {
         editor.commands.setContent(note.content || '');
       }
     }
@@ -205,12 +286,13 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     return { words, chars: text.length };
   }, [editor]);
 
-  if (!isOpen || !note) return null;
+  const isReadOnly = Boolean(note && note.permission === 'view' && !note.is_admin_view);
 
-  const isReadOnly = note.permission === 'view' && !note.is_admin_view;
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'dirty'>('saved');
 
-  const handleSave = () => {
-    if (!editor) return;
+  // Execute Save
+  const executeSave = useCallback(() => {
+    if (!editor || !note) return;
     const htmlContent = editor.getHTML();
     onSave(note.id, {
       title,
@@ -221,8 +303,29 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       style_variant: styleVariant,
       font_family: fontFamily as any,
     });
+    setSaveStatus('saved');
+  }, [editor, note, onSave, title, color, dueDate, tags, styleVariant, fontFamily]);
+
+  const handleSaveAndClose = () => {
+    executeSave();
     onClose();
   };
+
+  const handleSave = () => {
+    handleSaveAndClose();
+  };
+
+  // Real-time Debounced Auto-Save
+  useEffect(() => {
+    if (!isOpen || !note || isReadOnly) return;
+    setSaveStatus('dirty');
+    const timer = setTimeout(() => {
+      executeSave();
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [title, color, dueDate, tags, styleVariant, fontFamily, isOpen, note, isReadOnly, executeSave]);
+
+  if (!isOpen || !note) return null;
 
   const handleAddTag = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && tagInput.trim()) {
@@ -338,7 +441,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   );
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={handleSaveAndClose}>
       <div
         className="modal-content"
         style={{
@@ -353,7 +456,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       >
         {/* Header Title Input */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '1.1rem' }}>📝</span>
             <input
               type="text"
@@ -369,14 +472,33 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
                 borderRadius: '6px',
                 fontSize: '0.92rem',
                 fontWeight: 600,
-                width: '220px',
+                width: '200px',
                 background: 'var(--ui-bg)',
                 color: 'var(--ui-text)',
                 outline: 'none',
               }}
             />
+            {/* Real-time Auto-Save Badge */}
+            {!isReadOnly && (
+              <span
+                style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  color: saveStatus === 'saved' ? '#10b981' : '#f97316',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  background: saveStatus === 'saved' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(249, 115, 22, 0.12)',
+                  padding: '3px 8px',
+                  borderRadius: '12px',
+                  border: saveStatus === 'saved' ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(249, 115, 22, 0.3)',
+                }}
+              >
+                {saveStatus === 'saved' ? '✓ Auto-Saved' : '⏳ Saving...'}
+              </span>
+            )}
           </div>
-          <button className="btn-icon" onClick={onClose} title="Close editor" id="btn-close-editor">
+          <button className="btn-icon" onClick={handleSaveAndClose} title="Save & Close editor" id="btn-close-editor">
             <X size={20} />
           </button>
         </div>
@@ -386,6 +508,8 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           <div
             className="editor-toolbar"
             style={{
+              position: 'relative',
+              zIndex: 100,
               display: 'flex',
               alignItems: 'center',
               gap: '4px',
@@ -540,6 +664,86 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
               isActive={false}
               onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}
             />
+
+            <div style={{ width: '1px', height: '18px', background: 'var(--ui-border)', margin: '0 2px' }} />
+
+            {/* Web Speech Dictation Mic Button */}
+            {isSpeechSupported ? (
+              <ToolBtn
+                icon={isListening ? <MicOff size={15} style={{ color: '#ef4444' }} /> : <Mic size={15} />}
+                title={isListening ? 'Stop Voice Dictation' : 'Start Voice Dictation (Speak into mic)'}
+                isActive={isListening}
+                onClick={toggleListening}
+              />
+            ) : (
+              <ToolBtn
+                icon={<Mic size={15} style={{ opacity: 0.4 }} />}
+                title="Voice dictation (Click for info)"
+                isActive={false}
+                onClick={() =>
+                  alert(
+                    'Speech Recognition is supported on Chrome, Chromium, Edge, and Safari! Please ensure microphone permissions are allowed in your browser.'
+                  )
+                }
+              />
+            )}
+
+            {/* AI Assistant Menu */}
+            <AIAssistantMenu
+              noteTitle={title}
+              noteContent={editor ? editor.getHTML() : ''}
+              onApplySummary={handleApplyAISummary}
+              onApplyTags={handleApplyAITags}
+              onApplyIdeas={handleApplyAIIdeas}
+            />
+          </div>
+        )}
+
+        {/* Live Speech Dictation Banner Indicator & Error Display */}
+        {isListening && (
+          <div
+            style={{
+              padding: '6px 12px',
+              borderRadius: '8px',
+              background: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              color: '#ef4444',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              marginBottom: '10px',
+            }}
+          >
+            <span
+              style={{
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                background: '#ef4444',
+                display: 'inline-block',
+                animation: 'pulse 1s infinite',
+              }}
+            />
+            🎙️ Listening... {interimTranscript ? `"${interimTranscript}"` : 'Speak into your microphone...'}
+          </div>
+        )}
+
+        {speechError && (
+          <div
+            style={{
+              padding: '6px 12px',
+              borderRadius: '8px',
+              background: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              color: '#ef4444',
+              fontSize: '0.78rem',
+              fontWeight: 600,
+              marginBottom: '10px',
+            }}
+          >
+            ⚠️ Speech Error: {speechError}
           </div>
         )}
 

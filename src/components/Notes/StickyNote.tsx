@@ -9,6 +9,8 @@ import { sanitizeHtml } from '@/lib/sanitize';
 interface StickyNoteProps {
   note: Note;
   index: number;
+  isSelected?: boolean;
+  onSelectToggle?: (id: string, isShift: boolean) => void;
   onEdit: (note: Note) => void;
   onDelete: (id: string) => void;
   onPinToggle: (id: string, isPinned: boolean) => void;
@@ -16,11 +18,14 @@ interface StickyNoteProps {
   onArchiveToggle: (id: string, isArchived: boolean) => void;
   onShare: (note: Note) => void;
   onBringToFront: (id: string) => void;
+  onAttachImage?: (id: string, base64Image: string) => void;
 }
 
 export const StickyNote: React.FC<StickyNoteProps> = ({
   note,
   index,
+  isSelected = false,
+  onSelectToggle,
   onEdit,
   onDelete,
   onPinToggle,
@@ -28,9 +33,11 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
   onArchiveToggle,
   onShare,
   onBringToFront,
+  onAttachImage,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [isLocked, setIsLocked] = useState(note.is_locked || false);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   useEffect(() => {
     if (note.is_locked !== undefined) {
@@ -44,6 +51,34 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
     setIsLocked(nextLocked);
     if (onLockToggle) {
       onLockToggle(note.id, nextLocked);
+    }
+  };
+
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (e.shiftKey || isSelected) {
+      e.stopPropagation();
+      if (onSelectToggle) {
+        onSelectToggle(note.id, e.shiftKey);
+      }
+    }
+    onBringToFront(note.id);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    const files = Array.from(e.dataTransfer.files);
+    const imageFile = files.find((f) => f.type.startsWith('image/'));
+    if (imageFile && onAttachImage) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const base64 = ev.target?.result as string;
+        if (base64) {
+          onAttachImage(note.id, base64);
+        }
+      };
+      reader.readAsDataURL(imageFile);
     }
   };
 
@@ -67,6 +102,9 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
   const noteColorClass = colorClassMap[note.color] || '';
   const styleVariantClass = note.style_variant ? `note-style-${note.style_variant}` : '';
   const fontFamilyClass = note.font_family ? `font-${note.font_family}` : 'font-sans';
+
+  // Check if content contains image
+  const hasImage = note.content && (note.content.includes('<img') || note.content.includes('data:image'));
 
   // Calculate checklist completion progress
   const getChecklistStats = (html: string) => {
@@ -118,11 +156,17 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
   const style: React.CSSProperties = {
     top: `${note.position_y}px`,
     left: `${note.position_x}px`,
-    zIndex: isDragging ? 999 : (note.z_index || 1),
+    zIndex: isDragging ? 999 : isSelected ? 950 : (note.z_index || 1),
     backgroundColor: isCustomColor ? note.color : undefined,
     transform: transform
       ? `translate3d(${transform.x}px, ${transform.y}px, 0) scale(1.04)`
-      : `rotate(${rotation}deg)`,
+      : `rotate(${isSelected ? 0 : rotation}deg)`,
+    boxShadow: isSelected
+      ? '0 0 0 3px #1976d2, 0 12px 28px rgba(25, 118, 210, 0.35)'
+      : isDragOver
+      ? '0 0 0 3px #4caf50, 0 8px 20px rgba(76, 175, 80, 0.3)'
+      : undefined,
+    transition: transform ? 'none' : 'box-shadow 0.2s ease, transform 0.2s ease',
     animation: `popIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) ${index * 0.06}s both`,
   };
 
@@ -132,10 +176,13 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
     <div
       ref={setNodeRef}
       style={style}
-      className={`sticky-note-card ${noteColorClass} ${styleVariantClass} ${fontFamilyClass}`}
-      onClick={() => onBringToFront(note.id)}
+      className={`sticky-note-card ${noteColorClass} ${styleVariantClass} ${fontFamilyClass} ${isSelected ? 'is-selected' : ''}`}
+      onClick={handleCardClick}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+      onDragLeave={() => setIsDragOver(false)}
+      onDrop={handleDrop}
       {...attributes}
       {...listeners}
     >
@@ -145,14 +192,43 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
       {/* Pushpin if pinned */}
       {note.is_pinned && <div className="pushpin" title="Pinned to top" />}
 
+      {/* Selection Checkbox Toggle */}
+      {onSelectToggle && (isHovered || isSelected) && (
+        <div
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelectToggle(note.id, e.shiftKey);
+          }}
+          title={isSelected ? 'Deselect note' : 'Select note (Shift+Click to multi-select)'}
+          style={{
+            position: 'absolute',
+            top: '8px',
+            left: '8px',
+            width: '20px',
+            height: '20px',
+            borderRadius: '50%',
+            backgroundColor: isSelected ? '#1976d2' : 'rgba(255,255,255,0.85)',
+            border: isSelected ? '2px solid #fff' : '2px solid rgba(0,0,0,0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            zIndex: 10,
+            boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
+          }}
+        >
+          {isSelected && <span style={{ color: '#fff', fontSize: '11px', fontWeight: 'bold' }}>✓</span>}
+        </div>
+      )}
+
       {/* Note Header */}
-      <div className="note-header" style={{ marginTop: note.is_pinned ? '6px' : '0' }}>
+      <div className="note-header" style={{ marginTop: note.is_pinned ? '6px' : '0', paddingLeft: (isHovered || isSelected) && onSelectToggle ? '24px' : '0' }}>
         <h3 className="note-title">{note.title || 'Untitled Note'}</h3>
         <div
           style={{
             display: 'flex',
             gap: '2px',
-            opacity: isHovered ? 1 : 0.3,
+            opacity: isHovered || isSelected ? 1 : 0.3,
             transition: 'opacity 0.2s ease',
           }}
           onClick={(e) => e.stopPropagation()}
@@ -190,8 +266,8 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
         </div>
       </div>
 
-      {/* Due Date & Tag Badges Bar */}
-      {(dueBadge || (note.tags && note.tags.length > 0)) && (
+      {/* Due Date, Image Indicator & Tag Badges Bar */}
+      {(dueBadge || hasImage || (note.tags && note.tags.length > 0)) && (
         <div
           style={{
             display: 'flex',
@@ -204,6 +280,24 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
           {dueBadge && (
             <span className={`due-badge ${dueBadge.type}`} title={`Due Date: ${note.due_date}`}>
               <Calendar size={10} /> {dueBadge.label}
+            </span>
+          )}
+          {hasImage && (
+            <span
+              style={{
+                fontSize: '0.68rem',
+                fontWeight: 700,
+                background: 'rgba(255, 255, 255, 0.75)',
+                border: '1px solid rgba(0,0,0,0.15)',
+                borderRadius: '8px',
+                padding: '1px 6px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '3px',
+              }}
+              title="Contains image attachment"
+            >
+              🖼️ Image
             </span>
           )}
           {note.tags &&
@@ -302,13 +396,13 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
           </span>
         )}
 
-        {/* Action Buttons — appear on hover */}
+        {/* Action Buttons — appear on hover or when selected */}
         <div
           style={{
             display: 'flex',
             gap: '2px',
-            opacity: isHovered ? 1 : 0,
-            transform: isHovered ? 'translateX(0)' : 'translateX(4px)',
+            opacity: isHovered || isSelected ? 1 : 0,
+            transform: isHovered || isSelected ? 'translateX(0)' : 'translateX(4px)',
             transition: 'all 0.2s ease',
           }}
         >
@@ -345,3 +439,4 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
     </div>
   );
 };
+

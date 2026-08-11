@@ -182,9 +182,9 @@ export default function LoginPage() {
               style={{
                 position: 'absolute',
                 opacity: 0,
-                pointerEvents: 'none',
                 width: '1px',
                 height: '1px',
+                zIndex: -1,
               }}
             />
 

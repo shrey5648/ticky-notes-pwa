@@ -159,14 +159,20 @@ export function useNotes(userId?: string) {
 
   // Update Note (Optimistic)
   const updateNote = async (id: string, updates: Partial<Note>) => {
+    let updatedNoteObject: Note | null = null;
+
     setNotes((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, ...updates, updated_at: new Date().toISOString() } : n))
+      prev.map((n) => {
+        if (n.id === id) {
+          updatedNoteObject = { ...n, ...updates, updated_at: new Date().toISOString() };
+          return updatedNoteObject;
+        }
+        return n;
+      })
     );
 
-    const existing = notes.find((n) => n.id === id);
-    if (existing) {
-      const updated = { ...existing, ...updates, updated_at: new Date().toISOString() };
-      await saveSingleLocalNote(updated);
+    if (updatedNoteObject) {
+      await saveSingleLocalNote(updatedNoteObject);
     }
 
     if (navigator.onLine) {
