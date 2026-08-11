@@ -29,6 +29,10 @@
     "react": "19.0.0",
     "react-dom": "19.0.0"
   },
+  "resolutions": {
+    "react": "19.0.0",
+    "react-dom": "19.0.0"
+  },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/canvas-confetti": "^1.9.0",
