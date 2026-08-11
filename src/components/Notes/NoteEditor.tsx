@@ -205,28 +205,25 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     immediatelyRender: false,
   });
 
-  const lastSpeechTextRef = useRef('');
+  const processedWordCountRef = useRef(0);
 
   const handleSpeechResult = useCallback(
     (currentSpeechText: string, isFinal: boolean) => {
-      if (!editor || editor.isDestroyed || !currentSpeechText) return;
+      if (!editor || editor.isDestroyed || !currentSpeechText.trim()) return;
 
-      const prev = lastSpeechTextRef.current;
-      let delta = '';
+      const words = currentSpeechText.trim().split(/\s+/).filter(Boolean);
+      const currentCount = processedWordCountRef.current;
 
-      if (currentSpeechText.startsWith(prev)) {
-        delta = currentSpeechText.slice(prev.length);
-      } else {
-        delta = ` ${currentSpeechText}`;
-      }
-
-      if (delta) {
-        editor.commands.insertContent(delta);
-        lastSpeechTextRef.current = currentSpeechText;
+      if (words.length > currentCount) {
+        const newWords = words.slice(currentCount).join(' ');
+        if (newWords) {
+          editor.commands.insertContent(`${newWords} `);
+          processedWordCountRef.current = words.length;
+        }
       }
 
       if (isFinal) {
-        lastSpeechTextRef.current = '';
+        processedWordCountRef.current = 0;
       }
     },
     [editor]

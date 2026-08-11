@@ -2067,3 +2067,224 @@ body {
   color: #ffffff;
   box-shadow: 0 2px 8px rgba(230, 81, 0, 0.3);
 }
+
+/* ===== Phase 3: Spatial Visual Canvas Themes ===== */
+.cork-board.theme-cork {
+  background: #d4a373;
+  background-image: radial-gradient(rgba(0, 0, 0, 0.12) 1px, transparent 0);
+  background-size: 24px 24px;
+}
+
+.cork-board.theme-dark_leather {
+  background: #141416;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 0);
+  background-size: 28px 28px;
+}
+
+.cork-board.theme-blueprint {
+  background: #0f4c81;
+  background-image: 
+    linear-gradient(rgba(255, 255, 255, 0.15) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.15) 1px, transparent 1px);
+  background-size: 40px 40px, 40px 40px;
+}
+
+.cork-board.theme-grid_paper {
+  background: #f8fafc;
+  background-image: 
+    linear-gradient(#e2e8f0 1px, transparent 1px),
+    linear-gradient(90deg, #e2e8f0 1px, transparent 1px);
+  background-size: 30px 30px, 30px 30px;
+}
+
+.cork-board.theme-vintage_pastel {
+  background: linear-gradient(135deg, #fefae0 0%, #faedcd 50%, #e9edc9 100%);
+}
+
+.cork-board.theme-glassmorphism {
+  background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #311042 100%);
+}
+
+/* ===== Zoom & Navigation Controls Floating Bar ===== */
+.zoom-controls-bar {
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--toolbar-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--ui-border);
+  padding: 5px 8px;
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-md);
+  user-select: none;
+}
+
+.zoom-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--ui-text);
+  font-weight: 700;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.zoom-btn:hover {
+  background: var(--ui-accent-light);
+  color: var(--ui-accent);
+  transform: scale(1.1);
+}
+
+.zoom-btn.active {
+  background: var(--ui-accent);
+  color: #ffffff;
+}
+
+.zoom-indicator {
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0 8px;
+  color: var(--ui-text);
+  min-width: 50px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.zoom-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--ui-border);
+  margin: 0 4px;
+}
+
+/* ===== Mini-Map Radar Navigation Widget ===== */
+.minimap-radar-box {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 1000;
+  width: 220px;
+  height: 150px;
+  background: var(--ui-surface-solid);
+  border: 1.5px solid var(--ui-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  backdrop-filter: blur(12px);
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.minimap-radar-box.collapsed {
+  height: 36px;
+  width: 130px;
+  overflow: hidden;
+}
+
+.minimap-header {
+  height: 32px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--ui-surface);
+  border-bottom: 1px solid var(--ui-border);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--ui-text-muted);
+  cursor: pointer;
+}
+
+.minimap-canvas-area {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  background: var(--board-bg);
+  cursor: crosshair;
+  overflow: hidden;
+}
+
+.minimap-viewport-rect {
+  position: absolute;
+  border: 2px solid var(--ui-accent);
+  background: rgba(230, 81, 0, 0.15);
+  border-radius: 3px;
+  pointer-events: all;
+  cursor: move;
+  box-shadow: 0 0 8px rgba(230, 81, 0, 0.3);
+}
+
+/* ===== Connection Lines Overlay & Popover ===== */
+.connections-svg-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.connection-path {
+  pointer-events: visibleStroke;
+  cursor: pointer;
+  transition: stroke-width 0.15s ease, stroke 0.15s ease;
+}
+
+.connection-path:hover {
+  stroke-width: 4px !important;
+  filter: drop-shadow(0 0 6px rgba(99, 102, 241, 0.6));
+}
+
+.connection-label-group {
+  pointer-events: all;
+  cursor: pointer;
+}
+
+/* ===== Swimlane Framing Container ===== */
+.swimlane-frame-container {
+  position: absolute;
+  border-radius: var(--radius-lg);
+  border: 2px dashed rgba(59, 130, 246, 0.5);
+  background: rgba(59, 130, 246, 0.04);
+  box-shadow: inset 0 0 20px rgba(59, 130, 246, 0.03);
+  z-index: 1;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+  box-sizing: border-box;
+}
+
+.swimlane-frame-container:hover {
+  border-color: rgba(59, 130, 246, 0.9);
+  background: rgba(59, 130, 246, 0.07);
+}
+
+.swimlane-frame-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  background: rgba(59, 130, 246, 0.15);
+  border-top-left-radius: calc(var(--radius-lg) - 2px);
+  border-top-right-radius: calc(var(--radius-lg) - 2px);
+  border-bottom: 1px solid rgba(59, 130, 246, 0.3);
+  cursor: grab;
+  color: #1e3a8a;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.swimlane-frame-header:active {
+  cursor: grabbing;
+}

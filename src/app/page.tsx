@@ -13,7 +13,17 @@ import { TrashBinModal } from '@/components/Modals/TrashBinModal';
 import { CommandPaletteModal } from '@/components/Modals/CommandPaletteModal';
 import { NotificationAlarmBanner, AlarmItem } from '@/components/Modals/NotificationAlarmBanner';
 import { triggerNativeNotification, requestNotificationPermission } from '@/lib/notifications';
-import { Note, User, Board } from '@/lib/types';
+import { Note, User, Board, NoteConnection, NoteFrame } from '@/lib/types';
+import {
+  getLocalConnections,
+  saveSingleLocalConnection,
+  deleteLocalConnection,
+  saveLocalConnections,
+  getLocalFrames,
+  saveSingleLocalFrame,
+  deleteLocalFrame,
+  saveLocalFrames,
+} from '@/lib/db';
 import {
   exportBoardToJSON,
   exportBoardToMarkdown,
@@ -33,6 +43,11 @@ export default function StickyNotesAppPage() {
     { id: 'board-default', name: 'Main Board', owner_id: user?.id || 'admin', created_at: new Date().toISOString() },
   ]);
   const [currentBoardId, setCurrentBoardId] = useState<string>('board-default');
+
+  // Phase 3 Canvas State
+  const [connections, setConnections] = useState<NoteConnection[]>([]);
+  const [frames, setFrames] = useState<NoteFrame[]>([]);
+  const [themeVariant, setThemeVariant] = useState<'cork' | 'dark_leather' | 'blueprint' | 'grid_paper' | 'vintage_pastel' | 'glassmorphism'>('cork');
 
   // Filters state
   const [searchQuery, setSearchQuery] = useState('');
@@ -167,6 +182,122 @@ export default function StickyNotesAppPage() {
         .catch((err) => console.error('Failed to fetch boards:', err));
     }
   }, [user]);
+
+  // Phase 3 Connections & Frames Fetch & Persistence Effect
+  useEffect(() => {
+    if (user) {
+      getLocalConnections().then((localConns) => {
+        if (localConns.length > 0) setConnections(localConns);
+      });
+      getLocalFrames().then((localFrs) => {
+        if (localFrs.length > 0) setFrames(localFrs);
+      });
+
+      fetch(`/api/connections?board_id=${currentBoardId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.connections) {
+            setConnections(data.connections);
+            saveLocalConnections(data.connections);
+          }
+        })
+        .catch((err) => console.error('Failed to fetch connections:', err));
+
+      fetch(`/api/frames?board_id=${currentBoardId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.frames) {
+            setFrames(data.frames);
+            saveLocalFrames(data.frames);
+          }
+        })
+        .catch((err) => console.error('Failed to fetch frames:', err));
+    }
+  }, [user, currentBoardId]);
+
+  // Phase 3 Handlers for Connections & Frames
+  const handleCreateConnection = async (from_note_id: string, to_note_id: string) => {
+    const newConn: NoteConnection = {
+      id: `conn-${Date.now()}`,
+      board_id: currentBoardId,
+      from_note_id,
+      to_note_id,
+      color: '#6366f1',
+      style: 'solid',
+      arrow_type: 'end',
+      created_at: new Date().toISOString(),
+    };
+    setConnections((prev) => [...prev, newConn]);
+    await saveSingleLocalConnection(newConn);
+    fetch('/api/connections', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newConn),
+    }).catch((err) => console.error('Failed to save connection:', err));
+  };
+
+  const handleUpdateConnection = async (id: string, updates: Partial<NoteConnection>) => {
+    setConnections((prev) => prev.map((c) => (c.id === id ? { ...c, ...updates } : c)));
+    const conn = connections.find((c) => c.id === id);
+    if (conn) {
+      await saveSingleLocalConnection({ ...conn, ...updates });
+    }
+    fetch('/api/connections', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, ...updates }),
+    }).catch((err) => console.error('Failed to update connection:', err));
+  };
+
+  const handleDeleteConnection = async (id: string) => {
+    setConnections((prev) => prev.filter((c) => c.id !== id));
+    await deleteLocalConnection(id);
+    fetch(`/api/connections?id=${id}`, { method: 'DELETE' }).catch((err) =>
+      console.error('Failed to delete connection:', err)
+    );
+  };
+
+  const handleCreateFrame = async () => {
+    const newFrame: NoteFrame = {
+      id: `frame-${Date.now()}`,
+      board_id: currentBoardId,
+      title: '📌 Swimlane Section',
+      position_x: 120,
+      position_y: 120,
+      width: 450,
+      height: 350,
+      color: '#3b82f6',
+      created_at: new Date().toISOString(),
+    };
+    setFrames((prev) => [...prev, newFrame]);
+    await saveSingleLocalFrame(newFrame);
+    fetch('/api/frames', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newFrame),
+    }).catch((err) => console.error('Failed to create frame:', err));
+  };
+
+  const handleUpdateFrame = async (id: string, updates: Partial<NoteFrame>) => {
+    setFrames((prev) => prev.map((f) => (f.id === id ? { ...f, ...updates } : f)));
+    const frame = frames.find((f) => f.id === id);
+    if (frame) {
+      await saveSingleLocalFrame({ ...frame, ...updates });
+    }
+    fetch('/api/frames', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, ...updates }),
+    }).catch((err) => console.error('Failed to update frame:', err));
+  };
+
+  const handleDeleteFrame = async (id: string) => {
+    setFrames((prev) => prev.filter((f) => f.id !== id));
+    await deleteLocalFrame(id);
+    fetch(`/api/frames?id=${id}`, { method: 'DELETE' }).catch((err) =>
+      console.error('Failed to delete frame:', err)
+    );
+  };
 
   // Create new board
   const handleCreateBoard = async (name: string) => {
@@ -469,6 +600,8 @@ export default function StickyNotesAppPage() {
         isOnline={isOnline}
         syncing={syncing}
         theme={theme}
+        themeVariant={themeVariant}
+        onSelectThemeVariant={(variant: any) => setThemeVariant(variant)}
         onToggleTheme={toggleTheme}
         onCreateNote={handleCreateNewNote}
         onSelectNote={(note) => setEditingNote(note)}
@@ -480,6 +613,9 @@ export default function StickyNotesAppPage() {
       <CorkBoard
         notes={filteredNotes}
         selectedNoteIds={selectedNoteIds}
+        themeVariant={themeVariant}
+        connections={connections}
+        frames={frames}
         onSelectNote={handleSelectNote}
         onClearSelection={handleClearSelection}
         onSetSelection={handleSetSelection}
@@ -500,6 +636,12 @@ export default function StickyNotesAppPage() {
         onBatchAlign={handleBatchAlign}
         onCreateNoteWithImage={handleCreateNoteWithImage}
         onAttachImage={handleAttachImageToNote}
+        onCreateConnection={handleCreateConnection}
+        onUpdateConnection={handleUpdateConnection}
+        onDeleteConnection={handleDeleteConnection}
+        onCreateFrame={handleCreateFrame}
+        onUpdateFrame={handleUpdateFrame}
+        onDeleteFrame={handleDeleteFrame}
       />
 
       {/* Rich Text Note Editor Modal */}

@@ -11,6 +11,31 @@ export interface Board {
   name: string;
   owner_id: string;
   color?: string;
+  theme_variant?: 'cork' | 'dark_leather' | 'blueprint' | 'grid_paper' | 'vintage_pastel' | 'glassmorphism';
+  created_at: string;
+}
+
+export interface NoteConnection {
+  id: string;
+  board_id: string;
+  from_note_id: string;
+  to_note_id: string;
+  label?: string;
+  color?: string;
+  style?: 'solid' | 'dashed' | 'dotted';
+  arrow_type?: 'end' | 'both' | 'none';
+  created_at: string;
+}
+
+export interface NoteFrame {
+  id: string;
+  board_id: string;
+  title: string;
+  position_x: number;
+  position_y: number;
+  width: number;
+  height: number;
+  color?: string;
   created_at: string;
 }
 

@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS public.boards (
   name TEXT NOT NULL,
   owner_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   color TEXT DEFAULT '#e65100',
+  theme_variant TEXT DEFAULT 'cork',
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -40,6 +41,7 @@ CREATE TABLE IF NOT EXISTS public.notes (
 );
 
 -- Migration commands for databases initialized with earlier schema
+ALTER TABLE public.boards ADD COLUMN IF NOT EXISTS theme_variant TEXT DEFAULT 'cork';
 ALTER TABLE public.notes ADD COLUMN IF NOT EXISTS board_id TEXT DEFAULT 'board-default';
 ALTER TABLE public.notes ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false;
 ALTER TABLE public.notes ADD COLUMN IF NOT EXISTS is_locked BOOLEAN DEFAULT false;
@@ -59,10 +61,38 @@ CREATE TABLE IF NOT EXISTS public.note_shares (
   UNIQUE(note_id, shared_with)
 );
 
+-- Create note_connections table
+CREATE TABLE IF NOT EXISTS public.note_connections (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  board_id TEXT DEFAULT 'board-default',
+  from_note_id TEXT NOT NULL,
+  to_note_id TEXT NOT NULL,
+  label TEXT DEFAULT '',
+  color TEXT DEFAULT '#6366f1',
+  style TEXT DEFAULT 'solid',
+  arrow_type TEXT DEFAULT 'end',
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Create board_frames table
+CREATE TABLE IF NOT EXISTS public.board_frames (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  board_id TEXT DEFAULT 'board-default',
+  title TEXT DEFAULT 'Framed Group',
+  position_x INTEGER DEFAULT 100,
+  position_y INTEGER DEFAULT 100,
+  width INTEGER DEFAULT 400,
+  height INTEGER DEFAULT 300,
+  color TEXT DEFAULT '#3b82f6',
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- Indexes for fast queries
 CREATE INDEX IF NOT EXISTS idx_notes_owner ON public.notes(owner_id);
 CREATE INDEX IF NOT EXISTS idx_notes_archived ON public.notes(is_archived);
 CREATE INDEX IF NOT EXISTS idx_notes_board ON public.notes(board_id);
+CREATE INDEX IF NOT EXISTS idx_connections_board ON public.note_connections(board_id);
+CREATE INDEX IF NOT EXISTS idx_frames_board ON public.board_frames(board_id);
 CREATE INDEX IF NOT EXISTS idx_shares_with ON public.note_shares(shared_with);
 CREATE INDEX IF NOT EXISTS idx_shares_note ON public.note_shares(note_id);
 CREATE INDEX IF NOT EXISTS idx_users_role ON public.users(role);

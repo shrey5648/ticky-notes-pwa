@@ -19,6 +19,7 @@ interface StickyNoteProps {
   onShare: (note: Note) => void;
   onBringToFront: (id: string) => void;
   onAttachImage?: (id: string, base64Image: string) => void;
+  onStartConnect?: (id: string) => void;
 }
 
 export const StickyNote: React.FC<StickyNoteProps> = ({
@@ -34,6 +35,7 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
   onShare,
   onBringToFront,
   onAttachImage,
+  onStartConnect,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [isLocked, setIsLocked] = useState(note.is_locked || false);
@@ -253,6 +255,16 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
               <Unlock size={13} style={{ color: '#666' }} />
             )}
           </button>
+          {onStartConnect && (
+            <button
+              className="btn-icon"
+              style={{ width: '26px', height: '26px' }}
+              title="Connect to another note"
+              onClick={() => onStartConnect(note.id)}
+            >
+              <span style={{ fontSize: '12px' }}>🔗</span>
+            </button>
+          )}
           {!isReadOnly && (
             <button
               className="btn-icon"

@@ -1,5 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+function extractCleanLines(html: string): string[] {
+  if (!html) return [];
+  const textWithBreaks = html
+    .replace(/<\/(p|div|li|h1|h2|h3|blockquote)>/gi, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]*>/g, ' ');
+
+  const rawLines = textWithBreaks
+    .split(/[\n.!?]+/)
+    .map((s) => s.trim().replace(/\s+/g, ' '))
+    .filter((s) => s.length > 5);
+
+  return Array.from(new Set(rawLines));
+}
+
 function cleanHtmlText(html: string): string {
   if (!html) return '';
   return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -8,33 +23,41 @@ function cleanHtmlText(html: string): string {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { action, content, title = '' } = body;
-
-    if (!content && !title) {
-      return NextResponse.json({ error: 'Note content or title is required' }, { status: 400 });
-    }
+    const { action, content = '', title = '' } = body;
 
     const plainText = cleanHtmlText(content);
     const combinedText = `${title} ${plainText}`.trim();
 
+    if (!combinedText) {
+      return NextResponse.json({ error: 'Note content or title is required' }, { status: 400 });
+    }
+
     if (action === 'summarize') {
-      const sentences = plainText.split(/[.!?]+/).map((s) => s.trim()).filter((s) => s.length > 10);
+      const extractedLines = extractCleanLines(content);
       let summaryBullets: string[] = [];
 
-      if (sentences.length <= 2) {
-        summaryBullets = [plainText || title];
+      if (extractedLines.length === 0) {
+        summaryBullets = [title || plainText];
+      } else if (extractedLines.length <= 3) {
+        summaryBullets = extractedLines;
       } else {
-        // Top 3 informative sentences
-        summaryBullets = sentences.slice(0, 3).map((s) => `• ${s}`);
+        // Take top representative points across document
+        summaryBullets = [
+          extractedLines[0],
+          extractedLines[Math.floor(extractedLines.length / 2)],
+          extractedLines[extractedLines.length - 1],
+        ];
       }
 
+      // TipTap natively supports blockquote, strong, ul, li
       const formattedSummary = `
-<div style="background: rgba(249, 115, 22, 0.08); padding: 10px 14px; border-left: 4px solid #f97316; border-radius: 6px; margin: 10px 0;">
-  <strong>✨ AI Summary:</strong>
-  <ul style="margin: 6px 0 0 16px; padding: 0;">
-    ${summaryBullets.map((b) => `<li style="margin-bottom: 4px;">${b.replace(/^•\s*/, '')}</li>`).join('')}
+<blockquote>
+  <p><strong>✨ AI Executive Summary:</strong></p>
+  <ul>
+    ${summaryBullets.map((b) => `<li>${b}</li>`).join('')}
   </ul>
-</div>
+</blockquote>
+<p></p>
 `.trim();
 
       return NextResponse.json({
@@ -44,7 +67,10 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'tag') {
-      const stopWords = new Set(['the', 'and', 'with', 'this', 'that', 'from', 'have', 'for', 'are', 'your', 'about', 'note', 'will']);
+      const stopWords = new Set([
+        'the', 'and', 'with', 'this', 'that', 'from', 'have', 'for', 'are', 'your', 'about',
+        'note', 'will', 'some', 'what', 'when', 'where', 'there', 'they', 'them', 'just', 'more'
+      ]);
       const words = combinedText
         .toLowerCase()
         .replace(/[^a-z0-9\s]/g, '')
@@ -61,7 +87,6 @@ export async function POST(req: NextRequest) {
         .slice(0, 4)
         .map(([word]) => word);
 
-      // Contextual fallbacks if text is short
       const suggestedTags = topTags.length > 0 ? topTags : ['idea', 'notes', 'workspace'];
 
       return NextResponse.json({
@@ -70,20 +95,22 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'expand_ideas') {
+      const mainTopic = title || cleanHtmlText(content).slice(0, 30) || 'Task';
       const ideas = [
-        `🎯 Define actionable milestones & owner for "${title || 'this task'}"`,
-        `📌 Schedule review checkpoint with team`,
-        `💡 Explore alternative design or implementation approaches`,
-        `✅ Create test cases and validation criteria`,
+        `🎯 Action Item: Define ownership & target deadline for "${mainTopic}"`,
+        `📌 Review Checkpoint: Schedule progress review with team`,
+        `💡 Alternative Approach: Test alternative layout / implementation design`,
+        `✅ Quality Assurance: Create validation & edge-case test plan`,
       ];
 
       const htmlIdeas = `
-<div style="margin-top: 12px; padding: 10px; border: 1px dashed #3b82f6; border-radius: 8px; background: rgba(59, 130, 246, 0.05);">
-  <strong style="color: #3b82f6;">💡 Brainstormed Sub-Tasks:</strong>
-  <ul style="margin: 6px 0 0 16px; padding: 0;">
-    ${ideas.map((i) => `<li style="margin-bottom: 4px;">${i}</li>`).join('')}
+<blockquote>
+  <p><strong>💡 Brainstormed Sub-Tasks:</strong></p>
+  <ul>
+    ${ideas.map((i) => `<li>${i}</li>`).join('')}
   </ul>
-</div>
+</blockquote>
+<p></p>
 `.trim();
 
       return NextResponse.json({

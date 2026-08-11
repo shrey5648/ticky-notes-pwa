@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { User, Note, NoteShare, Board } from './types';
+import { User, Note, NoteShare, Board, NoteConnection, NoteFrame } from './types';
 
 const INITIAL_USERS: User[] = [
   {
@@ -23,11 +23,14 @@ const INITIAL_BOARDS: Board[] = [
     name: 'Main Board',
     owner_id: 'user-demo-1',
     color: '#e65100',
+    theme_variant: 'cork',
     created_at: new Date().toISOString(),
   },
 ];
 
 const INITIAL_NOTES: Note[] = [];
+const INITIAL_CONNECTIONS: NoteConnection[] = [];
+const INITIAL_FRAMES: NoteFrame[] = [];
 
 function ensureDirSync(dirPath: string): boolean {
   try {
@@ -73,6 +76,8 @@ function loadStore() {
         boards: Array.isArray(data.boards) && data.boards.length > 0 ? data.boards : INITIAL_BOARDS,
         notes: Array.isArray(data.notes) ? data.notes : INITIAL_NOTES,
         shares: Array.isArray(data.shares) ? data.shares : [],
+        connections: Array.isArray(data.connections) ? data.connections : INITIAL_CONNECTIONS,
+        frames: Array.isArray(data.frames) ? data.frames : INITIAL_FRAMES,
       };
     }
   } catch (err) {
@@ -85,6 +90,8 @@ function loadStore() {
     boards: INITIAL_BOARDS,
     notes: INITIAL_NOTES,
     shares: [],
+    connections: INITIAL_CONNECTIONS,
+    frames: INITIAL_FRAMES,
   };
 
   try {
@@ -104,6 +111,8 @@ export const mockUserHashes: Record<string, string> = loaded.userHashes;
 export const mockBoards: Board[] = loaded.boards;
 export const mockNotes: Note[] = loaded.notes;
 export const mockShares: NoteShare[] = loaded.shares;
+export const mockConnections: NoteConnection[] = loaded.connections;
+export const mockFrames: NoteFrame[] = loaded.frames;
 
 export function saveStore() {
   try {
@@ -115,6 +124,8 @@ export function saveStore() {
         boards: mockBoards,
         notes: mockNotes,
         shares: mockShares,
+        connections: mockConnections,
+        frames: mockFrames,
       };
       fs.writeFileSync(dataFile, JSON.stringify(data, null, 2), 'utf-8');
     }
