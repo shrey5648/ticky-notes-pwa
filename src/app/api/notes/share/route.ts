@@ -87,7 +87,11 @@ export async function POST(req: Request) {
         .eq('id', note_id)
         .single();
 
-      if (!note || note.owner_id !== user.id) {
+      if (!note) {
+        return NextResponse.json({ error: 'Note not found in workspace database' }, { status: 404 });
+      }
+
+      if (note.owner_id !== user.id && user.role !== 'admin') {
         return NextResponse.json({ error: 'Only the note owner can share this note' }, { status: 403 });
       }
 

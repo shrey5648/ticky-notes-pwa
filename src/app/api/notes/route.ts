@@ -151,6 +151,7 @@ export async function POST(req: Request) {
     };
 
     if (isSupabaseConfigured()) {
+      let insertedNote = null;
       const { data, error } = await supabaseAdmin
         .from('notes')
         .insert(newNoteData)
@@ -158,11 +159,37 @@ export async function POST(req: Request) {
         .single();
 
       if (error) {
-        console.error('Create note Supabase error:', error);
-        return NextResponse.json({ error: 'Failed to create note' }, { status: 500 });
+        console.warn('Create note full payload error, retrying with core fields:', error.message);
+        // Fallback for non-migrated schema: insert core fields only
+        const coreData = {
+          owner_id: user.id,
+          title: newNoteData.title,
+          content: newNoteData.content,
+          color: newNoteData.color,
+          position_x: newNoteData.position_x,
+          position_y: newNoteData.position_y,
+          is_pinned: newNoteData.is_pinned,
+          is_archived: newNoteData.is_archived,
+          z_index: newNoteData.z_index,
+        };
+
+        const { data: fallbackData, error: fallbackError } = await supabaseAdmin
+          .from('notes')
+          .insert(coreData)
+          .select()
+          .single();
+
+        if (fallbackError) {
+          console.error('Create note fallback error:', fallbackError);
+          return NextResponse.json({ error: 'Failed to create note in database' }, { status: 500 });
+        }
+
+        insertedNote = fallbackData;
+      } else {
+        insertedNote = data;
       }
 
-      return NextResponse.json({ note: { ...data, permission: 'owner' } });
+      return NextResponse.json({ note: { ...insertedNote, permission: 'owner' } });
     } else {
       // Mock store fallback
       const createdNote: Note = {

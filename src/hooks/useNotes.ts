@@ -137,11 +137,15 @@ export function useNotes(userId?: string) {
         });
         if (res.ok) {
           const data = await res.json();
-          // Replace temp note with server note
-          setNotes((prev) => prev.map((n) => (n.id === tempId ? data.note : n)));
-          await deleteLocalNote(tempId);
-          await saveSingleLocalNote(data.note);
-          return data.note;
+          if (data.note) {
+            setNotes((prev) => prev.map((n) => (n.id === tempId ? data.note : n)));
+            await deleteLocalNote(tempId);
+            await saveSingleLocalNote(data.note);
+            return data.note;
+          }
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          console.error('Create note API server error:', res.status, errData);
         }
       } catch (err) {
         console.error('Create note network error, queueing offline:', err);

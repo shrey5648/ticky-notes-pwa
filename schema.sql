@@ -8,10 +8,20 @@ CREATE TABLE IF NOT EXISTS public.users (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Create boards table
+CREATE TABLE IF NOT EXISTS public.boards (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  owner_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  color TEXT DEFAULT '#e65100',
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- Create notes table
 CREATE TABLE IF NOT EXISTS public.notes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  board_id TEXT DEFAULT 'board-default',
   title TEXT DEFAULT '',
   content TEXT DEFAULT '',
   color TEXT DEFAULT '#FFEB3B',
@@ -19,10 +29,23 @@ CREATE TABLE IF NOT EXISTS public.notes (
   position_y INTEGER DEFAULT 100,
   is_pinned BOOLEAN DEFAULT false,
   is_archived BOOLEAN DEFAULT false,
+  is_deleted BOOLEAN DEFAULT false,
   z_index INTEGER DEFAULT 1,
+  tags TEXT[] DEFAULT '{}',
+  due_date TIMESTAMPTZ,
+  style_variant TEXT DEFAULT 'default',
+  font_family TEXT DEFAULT 'sans',
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Migration commands for databases initialized with earlier schema
+ALTER TABLE public.notes ADD COLUMN IF NOT EXISTS board_id TEXT DEFAULT 'board-default';
+ALTER TABLE public.notes ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false;
+ALTER TABLE public.notes ADD COLUMN IF NOT EXISTS tags TEXT[] DEFAULT '{}';
+ALTER TABLE public.notes ADD COLUMN IF NOT EXISTS due_date TIMESTAMPTZ;
+ALTER TABLE public.notes ADD COLUMN IF NOT EXISTS style_variant TEXT DEFAULT 'default';
+ALTER TABLE public.notes ADD COLUMN IF NOT EXISTS font_family TEXT DEFAULT 'sans';
 
 -- Create note_shares table
 CREATE TABLE IF NOT EXISTS public.note_shares (
@@ -38,6 +61,8 @@ CREATE TABLE IF NOT EXISTS public.note_shares (
 -- Indexes for fast queries
 CREATE INDEX IF NOT EXISTS idx_notes_owner ON public.notes(owner_id);
 CREATE INDEX IF NOT EXISTS idx_notes_archived ON public.notes(is_archived);
+CREATE INDEX IF NOT EXISTS idx_notes_board ON public.notes(board_id);
 CREATE INDEX IF NOT EXISTS idx_shares_with ON public.note_shares(shared_with);
 CREATE INDEX IF NOT EXISTS idx_shares_note ON public.note_shares(note_id);
 CREATE INDEX IF NOT EXISTS idx_users_role ON public.users(role);
+

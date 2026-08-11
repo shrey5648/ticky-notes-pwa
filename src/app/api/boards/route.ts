@@ -1,7 +1,16 @@
 import { NextResponse } from 'next/server';
 import { getSessionUserFromHeader } from '@/lib/auth';
+import { isSupabaseConfigured, supabaseAdmin } from '@/lib/supabase';
 import { mockBoards, mockNotes, saveStore } from '@/lib/mockStore';
 import { Board } from '@/lib/types';
+
+const DEFAULT_BOARD: Board = {
+  id: 'board-default',
+  name: 'Main Board',
+  owner_id: 'system',
+  color: '#e65100',
+  created_at: new Date().toISOString(),
+};
 
 // GET list all workspace boards
 export async function GET(req: Request) {
@@ -11,19 +20,24 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Ensure default board exists
-    if (mockBoards.length === 0) {
-      mockBoards.push({
-        id: 'board-default',
-        name: 'Main Board',
-        owner_id: user.id,
-        color: '#e65100',
-        created_at: new Date().toISOString(),
-      });
-      saveStore();
-    }
+    if (isSupabaseConfigured()) {
+      const { data: dbBoards, error } = await supabaseAdmin
+        .from('boards')
+        .select('*')
+        .order('created_at', { ascending: true });
 
-    return NextResponse.json({ boards: mockBoards });
+      if (error || !dbBoards || dbBoards.length === 0) {
+        return NextResponse.json({ boards: [DEFAULT_BOARD, ...(dbBoards || [])] });
+      }
+
+      return NextResponse.json({ boards: dbBoards });
+    } else {
+      if (mockBoards.length === 0) {
+        mockBoards.push({ ...DEFAULT_BOARD, owner_id: user.id });
+        saveStore();
+      }
+      return NextResponse.json({ boards: mockBoards });
+    }
   } catch (err) {
     console.error('GET boards error:', err);
     return NextResponse.json({ error: 'Failed to retrieve boards' }, { status: 500 });
@@ -43,18 +57,40 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Board name is required' }, { status: 400 });
     }
 
-    const newBoard: Board = {
-      id: `board-${Date.now()}`,
+    const newBoard = {
       name: name.trim(),
       owner_id: user.id,
       color: color || '#e65100',
-      created_at: new Date().toISOString(),
     };
 
-    mockBoards.push(newBoard);
-    saveStore();
+    if (isSupabaseConfigured()) {
+      const { data, error } = await supabaseAdmin
+        .from('boards')
+        .insert(newBoard)
+        .select()
+        .single();
 
-    return NextResponse.json({ board: newBoard });
+      if (error) {
+        console.warn('Supabase create board failed, using fallback:', error.message);
+        const fallbackBoard: Board = {
+          id: `board-${Date.now()}`,
+          ...newBoard,
+          created_at: new Date().toISOString(),
+        };
+        return NextResponse.json({ board: fallbackBoard });
+      }
+
+      return NextResponse.json({ board: data });
+    } else {
+      const created: Board = {
+        id: `board-${Date.now()}`,
+        ...newBoard,
+        created_at: new Date().toISOString(),
+      };
+      mockBoards.push(created);
+      saveStore();
+      return NextResponse.json({ board: created });
+    }
   } catch (err) {
     console.error('POST board error:', err);
     return NextResponse.json({ error: 'Failed to create board' }, { status: 500 });
@@ -74,16 +110,31 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: 'Board ID and name are required' }, { status: 400 });
     }
 
-    const index = mockBoards.findIndex((b) => b.id === id);
-    if (index === -1) {
-      return NextResponse.json({ error: 'Board not found' }, { status: 404 });
+    if (isSupabaseConfigured()) {
+      const { data, error } = await supabaseAdmin
+        .from('boards')
+        .update({ name: name.trim(), color })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        return NextResponse.json({ error: 'Failed to update board' }, { status: 500 });
+      }
+
+      return NextResponse.json({ board: data });
+    } else {
+      const index = mockBoards.findIndex((b) => b.id === id);
+      if (index === -1) {
+        return NextResponse.json({ error: 'Board not found' }, { status: 404 });
+      }
+
+      mockBoards[index].name = name.trim();
+      if (color) mockBoards[index].color = color;
+      saveStore();
+
+      return NextResponse.json({ board: mockBoards[index] });
     }
-
-    mockBoards[index].name = name.trim();
-    if (color) mockBoards[index].color = color;
-    saveStore();
-
-    return NextResponse.json({ board: mockBoards[index] });
   } catch (err) {
     console.error('PUT board error:', err);
     return NextResponse.json({ error: 'Failed to update board' }, { status: 500 });
@@ -105,27 +156,29 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: 'Board ID is required' }, { status: 400 });
     }
 
-    if (id === 'board-default' || mockBoards.length <= 1) {
+    if (id === 'board-default') {
       return NextResponse.json({ error: 'Cannot delete default primary board' }, { status: 400 });
     }
 
-    const index = mockBoards.findIndex((b) => b.id === id);
-    if (index === -1) {
-      return NextResponse.json({ error: 'Board not found' }, { status: 404 });
-    }
-
-    mockBoards.splice(index, 1);
-
-    // Move notes belonging to deleted board back to default board
-    mockNotes.forEach((n) => {
-      if (n.board_id === id) {
-        n.board_id = 'board-default';
+    if (isSupabaseConfigured()) {
+      const { error } = await supabaseAdmin.from('boards').delete().eq('id', id);
+      if (error) {
+        console.error('Delete board error:', error);
       }
-    });
-
-    saveStore();
-
-    return NextResponse.json({ success: true, id });
+      return NextResponse.json({ success: true, id });
+    } else {
+      const index = mockBoards.findIndex((b) => b.id === id);
+      if (index > -1) {
+        mockBoards.splice(index, 1);
+        mockNotes.forEach((n) => {
+          if (n.board_id === id) {
+            n.board_id = 'board-default';
+          }
+        });
+        saveStore();
+      }
+      return NextResponse.json({ success: true, id });
+    }
   } catch (err) {
     console.error('DELETE board error:', err);
     return NextResponse.json({ error: 'Failed to delete board' }, { status: 500 });

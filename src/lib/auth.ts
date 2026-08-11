@@ -47,14 +47,26 @@ export async function getSessionUserFromHeader(req: Request): Promise<JWTPayload
     return verifyToken(token);
   }
   
-  // Check cookie as fallback
+  // Check cookie as fallback from Request header
   const cookieHeader = req.headers.get('cookie');
   if (cookieHeader) {
     const match = cookieHeader.match(/auth_token=([^;]+)/);
     if (match) {
-      return verifyToken(match[1]);
+      const user = await verifyToken(match[1]);
+      if (user) return user;
     }
   }
-  
+
+  // Check next/headers cookies() as framework-level fallback
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get('auth_token')?.value;
+    if (token) {
+      return await verifyToken(token);
+    }
+  } catch (err) {
+    // Ignore context errors if cookies() is called outside request context
+  }
+
   return null;
 }
