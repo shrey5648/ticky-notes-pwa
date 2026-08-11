@@ -906,7 +906,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
       {/* Create New Board Modal */}
       {showNewBoardModal && (
-        <div className="modal-overlay" style={{ zIndex: 9999 }}>
+        <div className="modal-overlay">
           <div className="modal-content" style={{ maxWidth: '400px', padding: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
               <h3 style={{ fontSize: '1.05rem', fontWeight: 700 }}>Create New Board</h3>
@@ -947,7 +947,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
       {/* PWA Install Modal */}
       {showInstallModal && (
-        <div className="modal-overlay" style={{ zIndex: 9999 }}>
+        <div className="modal-overlay">
           <div className="modal-content" style={{ maxWidth: '520px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>

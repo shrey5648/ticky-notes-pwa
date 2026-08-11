@@ -95,10 +95,20 @@ export default function StickyNotesAppPage() {
     }
   };
 
-  // Bring note to top z-index stack
+  // Bring note to top z-index stack with normalization to prevent z-index inflation
   const handleBringToFront = (id: string) => {
-    const maxZ = Math.max(...notes.map((n) => n.z_index || 1), 10);
-    updateNote(id, { z_index: maxZ + 1 });
+    const maxZ = Math.max(...notes.map((n) => n.z_index || 1), 1);
+    if (maxZ > 500) {
+      const sortedNotes = [...notes].sort((a, b) => (a.z_index || 1) - (b.z_index || 1));
+      sortedNotes.forEach((n, idx) => {
+        if (n.id !== id) {
+          updateNote(n.id, { z_index: idx + 1 });
+        }
+      });
+      updateNote(id, { z_index: sortedNotes.length + 1 });
+    } else {
+      updateNote(id, { z_index: maxZ + 1 });
+    }
   };
 
   // Extract all tags from active notes

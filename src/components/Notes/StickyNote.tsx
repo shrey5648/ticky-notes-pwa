@@ -98,7 +98,7 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
   const style: React.CSSProperties = {
     top: `${note.position_y}px`,
     left: `${note.position_x}px`,
-    zIndex: isDragging ? 9999 : note.z_index,
+    zIndex: isDragging ? 999 : (note.z_index || 1),
     backgroundColor: isCustomColor ? note.color : undefined,
     transform: transform
       ? `translate3d(${transform.x}px, ${transform.y}px, 0) scale(1.04)`

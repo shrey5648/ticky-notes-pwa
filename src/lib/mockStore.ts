@@ -1,9 +1,7 @@
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { User, Note, NoteShare, Board } from './types';
-
-const DATA_DIR = path.join(process.cwd(), 'data');
-const DATA_FILE = path.join(DATA_DIR, 'store.json');
 
 const INITIAL_USERS: User[] = [
   {
@@ -31,10 +29,43 @@ const INITIAL_BOARDS: Board[] = [
 
 const INITIAL_NOTES: Note[] = [];
 
-function loadStore() {
+function ensureDirSync(dirPath: string): boolean {
   try {
-    if (fs.existsSync(DATA_FILE)) {
-      const raw = fs.readFileSync(DATA_FILE, 'utf-8');
+    if (!fs.existsSync(dirPath)) {
+      fs.mkdirSync(dirPath, { recursive: true });
+    }
+    return true;
+  } catch (err) {
+    console.warn(`[mockStore] Cannot create directory ${dirPath}:`, err);
+    return false;
+  }
+}
+
+function getWritableStorePath(): { dataDir: string; dataFile: string } {
+  const isVercel = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+
+  if (isVercel) {
+    const tmpDir = path.join(os.tmpdir(), 'ticky-notes-data');
+    ensureDirSync(tmpDir);
+    return { dataDir: tmpDir, dataFile: path.join(tmpDir, 'store.json') };
+  }
+
+  const primaryDir = path.join(process.cwd(), 'data');
+  if (ensureDirSync(primaryDir)) {
+    return { dataDir: primaryDir, dataFile: path.join(primaryDir, 'store.json') };
+  }
+
+  const fallbackDir = path.join(os.tmpdir(), 'ticky-notes-data');
+  ensureDirSync(fallbackDir);
+  return { dataDir: fallbackDir, dataFile: path.join(fallbackDir, 'store.json') };
+}
+
+function loadStore() {
+  const { dataDir, dataFile } = getWritableStorePath();
+
+  try {
+    if (fs.existsSync(dataFile)) {
+      const raw = fs.readFileSync(dataFile, 'utf-8');
       const data = JSON.parse(raw);
       return {
         users: Array.isArray(data.users) && data.users.length > 0 ? data.users : INITIAL_USERS,
@@ -45,11 +76,7 @@ function loadStore() {
       };
     }
   } catch (err) {
-    console.error('Error reading store file, falling back to initial store:', err);
-  }
-
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+    console.error('[mockStore] Error reading store file, falling back to initial store:', err);
   }
 
   const initial = {
@@ -61,9 +88,10 @@ function loadStore() {
   };
 
   try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(initial, null, 2), 'utf-8');
+    ensureDirSync(dataDir);
+    fs.writeFileSync(dataFile, JSON.stringify(initial, null, 2), 'utf-8');
   } catch (err) {
-    console.error('Error creating initial store file:', err);
+    console.error('[mockStore] Error creating initial store file:', err);
   }
 
   return initial;
@@ -79,18 +107,19 @@ export const mockShares: NoteShare[] = loaded.shares;
 
 export function saveStore() {
   try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
+    const { dataDir, dataFile } = getWritableStorePath();
+    if (ensureDirSync(dataDir)) {
+      const data = {
+        users: mockUsers,
+        userHashes: mockUserHashes,
+        boards: mockBoards,
+        notes: mockNotes,
+        shares: mockShares,
+      };
+      fs.writeFileSync(dataFile, JSON.stringify(data, null, 2), 'utf-8');
     }
-    const data = {
-      users: mockUsers,
-      userHashes: mockUserHashes,
-      boards: mockBoards,
-      notes: mockNotes,
-      shares: mockShares,
-    };
-    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf-8');
   } catch (err) {
-    console.error('Error writing store to disk:', err);
+    console.error('[mockStore] Error writing store to disk:', err);
   }
 }
+
