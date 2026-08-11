@@ -202,7 +202,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     icon: React.ReactNode;
     title: string;
     isActive?: boolean;
-    onClick: () => void;
+    onClick: (e?: React.MouseEvent) => void;
     disabled?: boolean;
     style?: React.CSSProperties;
   }) => (
