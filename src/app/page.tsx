@@ -282,6 +282,7 @@ export default function StickyNotesAppPage() {
         onEditNote={setEditingNote}
         onDeleteNote={deleteNote}
         onPinToggle={(id, isPinned) => updateNote(id, { is_pinned: isPinned })}
+        onLockToggle={(id, isLocked) => updateNote(id, { is_locked: isLocked })}
         onArchiveToggle={(id, isArchived) => updateNote(id, { is_archived: isArchived })}
         onShareNote={setSharingNote}
         onBringToFront={handleBringToFront}

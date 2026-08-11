@@ -11,6 +11,7 @@ interface CorkBoardProps {
   onEditNote: (note: Note) => void;
   onDeleteNote: (id: string) => void;
   onPinToggle: (id: string, isPinned: boolean) => void;
+  onLockToggle?: (id: string, isLocked: boolean) => void;
   onArchiveToggle: (id: string, isArchived: boolean) => void;
   onShareNote: (note: Note) => void;
   onBringToFront: (id: string) => void;
@@ -38,6 +39,7 @@ export const CorkBoard: React.FC<CorkBoardProps> = ({
   onEditNote,
   onDeleteNote,
   onPinToggle,
+  onLockToggle,
   onArchiveToggle,
   onShareNote,
   onBringToFront,
@@ -82,6 +84,7 @@ export const CorkBoard: React.FC<CorkBoardProps> = ({
               onEdit={onEditNote}
               onDelete={onDeleteNote}
               onPinToggle={onPinToggle}
+              onLockToggle={onLockToggle}
               onArchiveToggle={onArchiveToggle}
               onShare={onShareNote}
               onBringToFront={onBringToFront}

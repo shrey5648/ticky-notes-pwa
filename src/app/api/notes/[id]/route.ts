@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSessionUserFromHeader } from '@/lib/auth';
+import { getAuthenticatedUser } from '@/lib/auth';
 import { isSupabaseConfigured, supabaseAdmin } from '@/lib/supabase';
 import { mockNotes, mockShares, saveStore } from '@/lib/mockStore';
 
@@ -8,7 +8,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getSessionUserFromHeader(req);
+    const user = await getAuthenticatedUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -55,6 +55,7 @@ export async function PUT(
       if (body.position_y !== undefined) updatePayload.position_y = body.position_y;
       if (body.is_pinned !== undefined) updatePayload.is_pinned = body.is_pinned;
       if (body.is_archived !== undefined) updatePayload.is_archived = body.is_archived;
+      if (body.is_locked !== undefined) updatePayload.is_locked = body.is_locked;
       if (body.z_index !== undefined) updatePayload.z_index = body.z_index;
       if (body.board_id !== undefined) updatePayload.board_id = body.board_id;
       if (body.is_deleted !== undefined) updatePayload.is_deleted = body.is_deleted;
@@ -136,7 +137,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getSessionUserFromHeader(req);
+    const user = await getAuthenticatedUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

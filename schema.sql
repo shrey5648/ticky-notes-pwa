@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS public.notes (
 -- Migration commands for databases initialized with earlier schema
 ALTER TABLE public.notes ADD COLUMN IF NOT EXISTS board_id TEXT DEFAULT 'board-default';
 ALTER TABLE public.notes ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false;
+ALTER TABLE public.notes ADD COLUMN IF NOT EXISTS is_locked BOOLEAN DEFAULT false;
 ALTER TABLE public.notes ADD COLUMN IF NOT EXISTS tags TEXT[] DEFAULT '{}';
 ALTER TABLE public.notes ADD COLUMN IF NOT EXISTS due_date TIMESTAMPTZ;
 ALTER TABLE public.notes ADD COLUMN IF NOT EXISTS style_variant TEXT DEFAULT 'default';

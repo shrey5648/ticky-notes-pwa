@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { getSessionUserFromHeader } from '@/lib/auth';
+import { getAuthenticatedUser } from '@/lib/auth';
 import { isSupabaseConfigured, supabaseAdmin } from '@/lib/supabase';
 import { mockUsers } from '@/lib/mockStore';
 
 export async function GET(req: Request) {
   try {
-    const user = await getSessionUserFromHeader(req);
+    const user = await getAuthenticatedUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

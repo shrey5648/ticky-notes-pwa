@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { Note } from '@/lib/types';
-import { Pin, Share2, Trash2, Edit3, Lock, Archive, User as UserIcon, Calendar, Tag } from 'lucide-react';
+import { Pin, Share2, Trash2, Edit3, Lock, Unlock, Archive, User as UserIcon, Calendar, Tag } from 'lucide-react';
+import { sanitizeHtml } from '@/lib/sanitize';
 
 interface StickyNoteProps {
   note: Note;
@@ -11,6 +12,7 @@ interface StickyNoteProps {
   onEdit: (note: Note) => void;
   onDelete: (id: string) => void;
   onPinToggle: (id: string, isPinned: boolean) => void;
+  onLockToggle?: (id: string, isLocked: boolean) => void;
   onArchiveToggle: (id: string, isArchived: boolean) => void;
   onShare: (note: Note) => void;
   onBringToFront: (id: string) => void;
@@ -22,11 +24,29 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
   onEdit,
   onDelete,
   onPinToggle,
+  onLockToggle,
   onArchiveToggle,
   onShare,
   onBringToFront,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
+  const [isLocked, setIsLocked] = useState(note.is_locked || false);
+
+  useEffect(() => {
+    if (note.is_locked !== undefined) {
+      setIsLocked(note.is_locked);
+    }
+  }, [note.is_locked]);
+
+  const handleLockToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const nextLocked = !isLocked;
+    setIsLocked(nextLocked);
+    if (onLockToggle) {
+      onLockToggle(note.id, nextLocked);
+    }
+  };
+
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: note.id,
     data: { note },
@@ -145,6 +165,18 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
           >
             <Pin size={13} style={{ color: note.is_pinned ? '#d32f2f' : '#666' }} />
           </button>
+          <button
+            className="btn-icon"
+            style={{ width: '26px', height: '26px' }}
+            title={isLocked ? 'Unlock description' : 'Lock description (Hide content)'}
+            onClick={handleLockToggle}
+          >
+            {isLocked ? (
+              <Lock size={13} style={{ color: '#d32f2f', fontWeight: 'bold' }} />
+            ) : (
+              <Unlock size={13} style={{ color: '#666' }} />
+            )}
+          </button>
           {!isReadOnly && (
             <button
               className="btn-icon"
@@ -184,21 +216,36 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
       )}
 
       {/* Checklist Progress Bar */}
-      {checklistStats && (
+      {checklistStats && !isLocked && (
         <div className="checklist-progress-bar" title={`Checklist: ${checklistStats.checked}/${checklistStats.total} completed (${checklistStats.percent}%)`}>
           <div className="checklist-progress-fill" style={{ width: `${checklistStats.percent}%` }} />
         </div>
       )}
 
       {/* Note Content */}
-      <div
-        className="note-body"
-        onClick={(e) => {
-          e.stopPropagation();
-          if (!isReadOnly) onEdit(note);
-        }}
-        dangerouslySetInnerHTML={{ __html: note.content || '<em style="opacity:0.5">Click to write...</em>' }}
-      />
+      {isLocked ? (
+        <div
+          className="note-body-locked"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleLockToggle(e);
+          }}
+          title="Click to reveal note description"
+        >
+          <Lock size={22} style={{ opacity: 0.55, marginBottom: '4px' }} />
+          <span style={{ fontSize: '0.85rem', fontWeight: 700, opacity: 0.85 }}>Description Hidden</span>
+          <span style={{ fontSize: '0.68rem', opacity: 0.6, marginTop: '3px' }}>Click lock icon or here to reveal</span>
+        </div>
+      ) : (
+        <div
+          className="note-body"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!isReadOnly) onEdit(note);
+          }}
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(note.content || '<em style="opacity:0.5">Click to write...</em>') }}
+        />
+      )}
 
       {/* Footer */}
       <div

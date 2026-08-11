@@ -2,10 +2,17 @@ import bcrypt from 'bcryptjs';
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { JWTPayload } from './types';
+import { isSupabaseConfigured, supabaseAdmin } from './supabase';
+import { mockUsers } from './mockStore';
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'sticky-notes-secret-key-change-in-production-2026'
-);
+const jwtSecretRaw = process.env.JWT_SECRET;
+if (!jwtSecretRaw) {
+  throw new Error(
+    '[SECURITY] JWT_SECRET environment variable is required. ' +
+    'Generate one with: openssl rand -base64 32'
+  );
+}
+const JWT_SECRET = new TextEncoder().encode(jwtSecretRaw);
 
 export async function hashPin(pin: string): Promise<string> {
   const salt = await bcrypt.genSalt(10);
@@ -20,7 +27,7 @@ export async function signToken(payload: JWTPayload): Promise<string> {
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime('30d')
+    .setExpirationTime('7d')
     .sign(JWT_SECRET);
 }
 
@@ -69,4 +76,39 @@ export async function getSessionUserFromHeader(req: Request): Promise<JWTPayload
   }
 
   return null;
+}
+
+/**
+ * Get the authenticated user with a fresh role from the database.
+ * This prevents stale JWT roles from granting unauthorized access.
+ */
+export async function getAuthenticatedUser(req: Request): Promise<JWTPayload | null> {
+  const sessionUser = await getSessionUserFromHeader(req);
+  if (!sessionUser) return null;
+
+  // Re-validate role from database
+  let freshRole: string = sessionUser.role || 'user';
+
+  if (isSupabaseConfigured()) {
+    const { data } = await supabaseAdmin
+      .from('users')
+      .select('role')
+      .eq('id', sessionUser.id)
+      .single();
+    if (data && data.role) {
+      freshRole = data.role;
+    }
+  } else {
+    const found = mockUsers.find(
+      (u) => u.id === sessionUser.id || u.username === sessionUser.username
+    );
+    if (found && found.role) {
+      freshRole = found.role;
+    }
+  }
+
+  return {
+    ...sessionUser,
+    role: freshRole as 'admin' | 'user',
+  };
 }

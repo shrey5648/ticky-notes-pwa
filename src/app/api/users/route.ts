@@ -1,14 +1,19 @@
 import { NextResponse } from 'next/server';
-import { getSessionUserFromHeader, hashPin } from '@/lib/auth';
+import { getAuthenticatedUser, hashPin } from '@/lib/auth';
 import { isSupabaseConfigured, supabaseAdmin } from '@/lib/supabase';
 import { mockUsers, mockUserHashes, mockNotes, mockShares, saveStore } from '@/lib/mockStore';
 
 // GET list all users
 export async function GET(req: Request) {
   try {
-    const sessionUser = await getSessionUserFromHeader(req);
+    const sessionUser = await getAuthenticatedUser(req);
     if (!sessionUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Only admins can list all users
+    if (sessionUser.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
     }
 
     if (isSupabaseConfigured()) {
@@ -58,9 +63,14 @@ export async function GET(req: Request) {
 // POST create new user (Admin Add User)
 export async function POST(req: Request) {
   try {
-    const sessionUser = await getSessionUserFromHeader(req);
+    const sessionUser = await getAuthenticatedUser(req);
     if (!sessionUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Only admins can create users
+    if (sessionUser.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
     }
 
     const { username, pin, display_name, role } = await req.json();

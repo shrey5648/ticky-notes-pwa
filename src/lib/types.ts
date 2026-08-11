@@ -26,6 +26,7 @@ export interface Note {
   is_pinned: boolean;
   is_archived: boolean;
   is_deleted?: boolean;
+  is_locked?: boolean;
   z_index: number;
   tags?: string[];
   due_date?: string | null;

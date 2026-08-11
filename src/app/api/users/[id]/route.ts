@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSessionUserFromHeader, hashPin } from '@/lib/auth';
+import { getAuthenticatedUser, hashPin } from '@/lib/auth';
 import { isSupabaseConfigured, supabaseAdmin } from '@/lib/supabase';
 import { mockUsers, mockNotes, mockShares, mockUserHashes, saveStore } from '@/lib/mockStore';
 
@@ -9,7 +9,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const sessionUser = await getSessionUserFromHeader(req);
+    const sessionUser = await getAuthenticatedUser(req);
     if (!sessionUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -69,9 +69,14 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const sessionUser = await getSessionUserFromHeader(req);
+    const sessionUser = await getAuthenticatedUser(req);
     if (!sessionUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Only admins can delete users
+    if (sessionUser.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
     }
 
     const resolvedParams = await params;

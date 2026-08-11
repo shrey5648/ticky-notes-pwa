@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getSessionUserFromHeader } from '@/lib/auth';
+import { getAuthenticatedUser } from '@/lib/auth';
 import { isSupabaseConfigured, supabaseAdmin } from '@/lib/supabase';
 import { mockNotes, mockShares, mockUsers, saveStore } from '@/lib/mockStore';
 
 // GET list shares for a note
 export async function GET(req: Request) {
   try {
-    const user = await getSessionUserFromHeader(req);
+    const user = await getAuthenticatedUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -66,7 +66,7 @@ export async function GET(req: Request) {
 // POST share note with user
 export async function POST(req: Request) {
   try {
-    const user = await getSessionUserFromHeader(req);
+    const user = await getAuthenticatedUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -190,7 +190,7 @@ export async function POST(req: Request) {
 // DELETE revoke share
 export async function DELETE(req: Request) {
   try {
-    const user = await getSessionUserFromHeader(req);
+    const user = await getAuthenticatedUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -203,18 +203,41 @@ export async function DELETE(req: Request) {
     }
 
     if (isSupabaseConfigured()) {
+      // Verify the user has permission to revoke this share
+      const { data: share } = await supabaseAdmin
+        .from('note_shares')
+        .select('shared_by, shared_with, note_id')
+        .eq('id', shareId)
+        .single();
+
+      if (!share) {
+        return NextResponse.json({ error: 'Share not found' }, { status: 404 });
+      }
+
+      // Only the share creator, recipient, or admin can revoke
+      if (share.shared_by !== user.id && share.shared_with !== user.id && user.role !== 'admin') {
+        return NextResponse.json({ error: 'Forbidden: You cannot revoke this share' }, { status: 403 });
+      }
+
       const { error } = await supabaseAdmin.from('note_shares').delete().eq('id', shareId);
       if (error) {
         return NextResponse.json({ error: 'Failed to revoke share' }, { status: 500 });
       }
       return NextResponse.json({ success: true });
     } else {
-      // Mock Fallback
+      // Mock Fallback — verify ownership
       const idx = mockShares.findIndex((s) => s.id === shareId);
-      if (idx > -1) {
-        mockShares.splice(idx, 1);
-        saveStore();
+      if (idx === -1) {
+        return NextResponse.json({ error: 'Share not found' }, { status: 404 });
       }
+
+      const share = mockShares[idx];
+      if (share.shared_by !== user.id && share.shared_with !== user.id && user.role !== 'admin') {
+        return NextResponse.json({ error: 'Forbidden: You cannot revoke this share' }, { status: 403 });
+      }
+
+      mockShares.splice(idx, 1);
+      saveStore();
       return NextResponse.json({ success: true });
     }
   } catch (err) {

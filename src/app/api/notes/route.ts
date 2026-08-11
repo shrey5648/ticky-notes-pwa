@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getSessionUserFromHeader } from '@/lib/auth';
+import { getAuthenticatedUser } from '@/lib/auth';
 import { isSupabaseConfigured, supabaseAdmin } from '@/lib/supabase';
 import { mockNotes, mockShares, mockUsers, saveStore } from '@/lib/mockStore';
 import { Note } from '@/lib/types';
 
 export async function GET(req: Request) {
   try {
-    const user = await getSessionUserFromHeader(req);
+    const user = await getAuthenticatedUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -124,13 +124,13 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const user = await getSessionUserFromHeader(req);
+    const user = await getAuthenticatedUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const body = await req.json();
-    const { title, content, color, position_x, position_y, is_pinned, board_id, tags, due_date, style_variant, font_family } = body;
+    const { title, content, color, position_x, position_y, is_pinned, is_locked, board_id, tags, due_date, style_variant, font_family } = body;
 
     const newNoteData = {
       owner_id: user.id,
@@ -143,6 +143,7 @@ export async function POST(req: Request) {
       is_pinned: is_pinned ?? false,
       is_archived: false,
       is_deleted: false,
+      is_locked: is_locked ?? false,
       tags: Array.isArray(tags) ? tags : [],
       due_date: due_date || null,
       style_variant: style_variant || 'default',

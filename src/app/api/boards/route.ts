@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSessionUserFromHeader } from '@/lib/auth';
+import { getAuthenticatedUser } from '@/lib/auth';
 import { isSupabaseConfigured, supabaseAdmin } from '@/lib/supabase';
 import { mockBoards, mockNotes, saveStore } from '@/lib/mockStore';
 import { Board } from '@/lib/types';
@@ -15,7 +15,7 @@ const DEFAULT_BOARD: Board = {
 // GET list all workspace boards
 export async function GET(req: Request) {
   try {
-    const user = await getSessionUserFromHeader(req);
+    const user = await getAuthenticatedUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -47,7 +47,7 @@ export async function GET(req: Request) {
 // POST create new board
 export async function POST(req: Request) {
   try {
-    const user = await getSessionUserFromHeader(req);
+    const user = await getAuthenticatedUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -100,7 +100,7 @@ export async function POST(req: Request) {
 // PUT update / rename board
 export async function PUT(req: Request) {
   try {
-    const user = await getSessionUserFromHeader(req);
+    const user = await getAuthenticatedUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -111,6 +111,21 @@ export async function PUT(req: Request) {
     }
 
     if (isSupabaseConfigured()) {
+      // Verify ownership before updating
+      const { data: board } = await supabaseAdmin
+        .from('boards')
+        .select('owner_id')
+        .eq('id', id)
+        .single();
+
+      if (!board) {
+        return NextResponse.json({ error: 'Board not found' }, { status: 404 });
+      }
+
+      if (board.owner_id !== user.id && user.role !== 'admin') {
+        return NextResponse.json({ error: 'Forbidden: Only board owner or admin can update' }, { status: 403 });
+      }
+
       const { data, error } = await supabaseAdmin
         .from('boards')
         .update({ name: name.trim(), color })
@@ -129,6 +144,10 @@ export async function PUT(req: Request) {
         return NextResponse.json({ error: 'Board not found' }, { status: 404 });
       }
 
+      if (mockBoards[index].owner_id !== user.id && user.role !== 'admin') {
+        return NextResponse.json({ error: 'Forbidden: Only board owner or admin can update' }, { status: 403 });
+      }
+
       mockBoards[index].name = name.trim();
       if (color) mockBoards[index].color = color;
       saveStore();
@@ -144,7 +163,7 @@ export async function PUT(req: Request) {
 // DELETE delete board
 export async function DELETE(req: Request) {
   try {
-    const user = await getSessionUserFromHeader(req);
+    const user = await getAuthenticatedUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -161,6 +180,17 @@ export async function DELETE(req: Request) {
     }
 
     if (isSupabaseConfigured()) {
+      // Verify ownership before deleting
+      const { data: board } = await supabaseAdmin
+        .from('boards')
+        .select('owner_id')
+        .eq('id', id)
+        .single();
+
+      if (board && board.owner_id !== user.id && user.role !== 'admin') {
+        return NextResponse.json({ error: 'Forbidden: Only board owner or admin can delete' }, { status: 403 });
+      }
+
       const { error } = await supabaseAdmin.from('boards').delete().eq('id', id);
       if (error) {
         console.error('Delete board error:', error);
@@ -169,6 +199,9 @@ export async function DELETE(req: Request) {
     } else {
       const index = mockBoards.findIndex((b) => b.id === id);
       if (index > -1) {
+        if (mockBoards[index].owner_id !== user.id && user.role !== 'admin') {
+          return NextResponse.json({ error: 'Forbidden: Only board owner or admin can delete' }, { status: 403 });
+        }
         mockBoards.splice(index, 1);
         mockNotes.forEach((n) => {
           if (n.board_id === id) {
