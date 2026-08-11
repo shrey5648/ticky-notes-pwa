@@ -36,28 +36,31 @@ export async function POST(req: Request) {
         id: data.id,
         username: data.username,
         display_name: data.display_name,
+        role: data.role || 'user',
       };
       pinHash = data.pin_hash;
     } else {
-      // Mock Fallback
+      // Local Database Store
       const found = mockUsers.find((u) => u.username === cleanUsername);
       if (!found) {
         return NextResponse.json(
-          { error: 'Invalid username or PIN. (Demo accounts: "ignek" or "alex", PIN: 1234)' },
+          { error: 'Invalid username or PIN.' },
           { status: 401 }
         );
       }
       user = found;
-      pinHash = mockUserHashes[found.id] || '$2a$10$w8.1Z31P38.k7H7dY1Gg5.0uR0tW7yZ6N5m6O7P8Q9R0S1T2U3V4W';
+      pinHash = mockUserHashes[found.id];
     }
 
-    // Verify PIN (in mock mode, allow "1234" for demo accounts)
-    let isValid = false;
-    if (!isSupabaseConfigured() && pin === '1234') {
-      isValid = true;
-    } else {
-      isValid = await verifyPin(pin, pinHash);
+    if (!pinHash) {
+      return NextResponse.json(
+        { error: 'Invalid username or PIN.' },
+        { status: 401 }
+      );
     }
+
+    // Verify PIN with secure bcrypt verification
+    const isValid = await verifyPin(pin, pinHash);
 
     if (!isValid) {
       return NextResponse.json(
@@ -66,11 +69,14 @@ export async function POST(req: Request) {
       );
     }
 
-    // Sign JWT token
+    const userRole = user.role || 'user';
+
+    // Sign JWT token including role
     const token = await signToken({
       id: user.id,
       username: user.username,
       display_name: user.display_name,
+      role: userRole,
     });
 
     const response = NextResponse.json({
@@ -79,6 +85,7 @@ export async function POST(req: Request) {
         id: user.id,
         username: user.username,
         display_name: user.display_name,
+        role: userRole,
       },
     });
 

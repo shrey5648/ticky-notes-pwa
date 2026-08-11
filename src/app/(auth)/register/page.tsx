@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { User as UserIcon, ArrowRight, ShieldCheck } from 'lucide-react';
+import { User as UserIcon, ArrowRight, ArrowLeft, ShieldCheck, Sparkles } from 'lucide-react';
 
 export default function RegisterPage() {
   const [username, setUsername] = useState('');
@@ -66,53 +66,67 @@ export default function RegisterPage() {
   };
 
   return (
-    <div
-      style={{
-        width: '100vw',
-        height: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'var(--board-bg)',
-        backgroundImage: 'var(--board-texture)',
-        backgroundSize: '40px 40px',
-        padding: '16px',
-      }}
-    >
-      <div
-        className="sticky-note-card note-color-pink"
-        style={{
-          width: '360px',
-          padding: '32px 28px',
-          transform: 'rotate(1.5deg)',
-          borderRadius: '4px 4px 18px 4px',
-          boxShadow: '0 16px 36px rgba(0,0,0,0.25)',
-          position: 'relative',
-        }}
-      >
-        <div className="sticky-note-tape" />
-        <div className="pushpin" />
-
-        <div style={{ textAlign: 'center', marginTop: '8px', marginBottom: '20px' }}>
-          <div style={{ fontSize: '2rem', marginBottom: '4px' }}>✨</div>
-          <h1 style={{ fontFamily: 'var(--font-note)', fontSize: '2.2rem', fontWeight: 700, color: '#111' }}>
+    <div className="auth-page">
+      <div className="auth-card">
+        {/* Brand Header */}
+        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+          <div
+            style={{
+              width: '56px',
+              height: '56px',
+              margin: '0 auto 14px',
+              borderRadius: '16px',
+              background: 'linear-gradient(135deg, #ec407a, #ab47bc)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 4px 16px rgba(236, 64, 122, 0.3)',
+            }}
+          >
+            <Sparkles size={28} color="#fff" />
+          </div>
+          <h1 className="auth-title" style={{ background: 'linear-gradient(135deg, #ec407a, #ab47bc)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
             Create Note Board
           </h1>
-          <p style={{ fontSize: '0.85rem', color: '#555' }}>
-            {step === 'details' ? 'Choose username & display name' : 'Set your 4-digit security PIN'}
+          <p className="auth-subtitle">
+            {step === 'details' ? 'Choose your username & display name' : 'Set your 4-digit security PIN'}
           </p>
+
+          {/* Step indicator */}
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '12px' }}>
+            <div
+              style={{
+                width: '32px',
+                height: '4px',
+                borderRadius: '2px',
+                background: 'var(--ui-accent)',
+                transition: 'all 0.3s ease',
+              }}
+            />
+            <div
+              style={{
+                width: '32px',
+                height: '4px',
+                borderRadius: '2px',
+                background: step === 'pin' ? 'var(--ui-accent)' : 'var(--ui-border)',
+                transition: 'all 0.3s ease',
+              }}
+            />
+          </div>
         </div>
 
+        {/* Error Display */}
         {error && (
           <div
             style={{
-              padding: '8px 12px',
-              borderRadius: '8px',
-              background: 'rgba(244, 67, 54, 0.15)',
-              color: '#c62828',
+              padding: '10px 14px',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--ui-danger-bg)',
+              color: 'var(--ui-danger)',
               fontSize: '0.85rem',
-              marginBottom: '16px',
+              marginBottom: '20px',
               textAlign: 'center',
+              animation: 'fadeInUp 0.3s ease both',
             }}
           >
             {error}
@@ -120,50 +134,66 @@ export default function RegisterPage() {
         )}
 
         {step === 'details' ? (
-          <div>
+          <div style={{ animation: 'fadeInUp 0.3s ease both' }}>
+            {/* Username Field */}
             <div style={{ marginBottom: '16px' }}>
-              <label style={{ fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', color: '#444' }}>
-                Username
+              <label
+                style={{
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  color: 'var(--ui-text-muted)',
+                  display: 'block',
+                  marginBottom: '6px',
+                }}
+              >
+                Username *
               </label>
-              <div style={{ position: 'relative', marginTop: '4px' }}>
-                <UserIcon size={16} style={{ position: 'absolute', left: '12px', top: '10px', color: '#666' }} />
+              <div style={{ position: 'relative' }}>
+                <UserIcon
+                  size={16}
+                  style={{
+                    position: 'absolute',
+                    left: '14px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: 'var(--ui-text-muted)',
+                  }}
+                />
                 <input
                   type="text"
+                  className="auth-input"
                   placeholder="e.g. ignek"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px 8px 36px',
-                    borderRadius: '8px',
-                    border: '1px solid rgba(0,0,0,0.15)',
-                    background: 'rgba(255,255,255,0.7)',
-                    fontSize: '0.95rem',
-                    outline: 'none',
-                  }}
+                  autoFocus
                 />
               </div>
             </div>
 
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', color: '#444' }}>
+            {/* Display Name */}
+            <div style={{ marginBottom: '24px' }}>
+              <label
+                style={{
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  color: 'var(--ui-text-muted)',
+                  display: 'block',
+                  marginBottom: '6px',
+                }}
+              >
                 Display Name (Optional)
               </label>
               <input
                 type="text"
+                className="auth-input"
+                style={{ paddingLeft: '14px' }}
                 placeholder="e.g. Ignek User"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  borderRadius: '8px',
-                  border: '1px solid rgba(0,0,0,0.15)',
-                  background: 'rgba(255,255,255,0.7)',
-                  fontSize: '0.95rem',
-                  outline: 'none',
-                  marginTop: '4px',
-                }}
               />
             </div>
 
@@ -171,109 +201,73 @@ export default function RegisterPage() {
               type="button"
               className="btn-primary"
               onClick={handleNextStep}
-              style={{ width: '100%', justifyContent: 'center', padding: '12px' }}
+              style={{
+                width: '100%',
+                justifyContent: 'center',
+                padding: '12px 20px',
+                fontSize: '0.95rem',
+              }}
             >
               Continue to PIN setup <ArrowRight size={16} />
             </button>
           </div>
         ) : (
-          <div>
-            <div style={{ marginBottom: '12px', textAlign: 'center' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#444' }}>
+          <div style={{ animation: 'fadeInUp 0.3s ease both' }}>
+            {/* PIN Phase Label */}
+            <div style={{ textAlign: 'center', marginBottom: '14px' }}>
+              <span
+                style={{
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  color: 'var(--ui-text-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                }}
+              >
                 {pin.length < 4 ? 'Set 4-Digit PIN' : 'Confirm 4-Digit PIN'}
               </span>
+            </div>
 
-              {/* PIN boxes display */}
-              <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginTop: '6px' }}>
-                {[0, 1, 2, 3].map((idx) => {
-                  const currentPin = pin.length < 4 ? pin : confirmPin;
-                  return (
-                    <div
-                      key={idx}
-                      style={{
-                        width: '36px',
-                        height: '42px',
-                        borderRadius: '8px',
-                        border: '2px solid rgba(0,0,0,0.2)',
-                        background: currentPin.length > idx ? '#111' : 'rgba(255,255,255,0.8)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: '#fff',
-                        fontWeight: 'bold',
-                        fontSize: '1.2rem',
-                      }}
-                    >
-                      {currentPin.length > idx ? '•' : ''}
-                    </div>
-                  );
-                })}
-              </div>
+            {/* PIN Dots */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginBottom: '16px' }}>
+              {[0, 1, 2, 3].map((idx) => {
+                const currentPin = pin.length < 4 ? pin : confirmPin;
+                return (
+                  <div key={idx} className={`pin-dot ${currentPin.length > idx ? 'filled' : ''}`}>
+                    {currentPin.length > idx ? '•' : ''}
+                  </div>
+                );
+              })}
             </div>
 
             {/* Keypad */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', marginBottom: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '20px' }}>
               {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
                 <button
                   key={digit}
                   type="button"
+                  className="pin-key"
                   onClick={() => handlePinClick(digit)}
-                  style={{
-                    padding: '8px',
-                    borderRadius: '8px',
-                    border: '1px solid rgba(0,0,0,0.1)',
-                    background: 'rgba(255,255,255,0.8)',
-                    fontWeight: 600,
-                    fontSize: '1.1rem',
-                    cursor: 'pointer',
-                  }}
                 >
                   {digit}
                 </button>
               ))}
-              <button
-                type="button"
-                onClick={handleBackspace}
-                style={{
-                  padding: '8px',
-                  borderRadius: '8px',
-                  border: '1px solid rgba(0,0,0,0.1)',
-                  background: 'rgba(255,255,255,0.5)',
-                  fontSize: '0.9rem',
-                  cursor: 'pointer',
-                }}
-              >
+              <button type="button" className="pin-key-special" onClick={handleBackspace}>
                 ⌫
               </button>
-              <button
-                type="button"
-                onClick={() => handlePinClick('0')}
-                style={{
-                  padding: '8px',
-                  borderRadius: '8px',
-                  border: '1px solid rgba(0,0,0,0.1)',
-                  background: 'rgba(255,255,255,0.8)',
-                  fontWeight: 600,
-                  fontSize: '1.1rem',
-                  cursor: 'pointer',
-                }}
-              >
+              <button type="button" className="pin-key" onClick={() => handlePinClick('0')}>
                 0
               </button>
               <button
                 type="button"
-                onClick={() => setStep('details')}
-                style={{
-                  padding: '8px',
-                  borderRadius: '8px',
-                  border: '1px solid rgba(0,0,0,0.1)',
-                  background: 'rgba(255,255,255,0.5)',
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
+                className="pin-key-special"
+                onClick={() => {
+                  setPin('');
+                  setConfirmPin('');
+                  setStep('details');
                 }}
               >
-                Back
+                <ArrowLeft size={14} style={{ marginRight: '2px' }} /> Back
               </button>
             </div>
 
@@ -282,17 +276,39 @@ export default function RegisterPage() {
               className="btn-primary"
               disabled={loading || confirmPin.length < 4}
               onClick={handleSubmit}
-              style={{ width: '100%', justifyContent: 'center', padding: '12px' }}
+              style={{
+                width: '100%',
+                justifyContent: 'center',
+                padding: '12px 20px',
+                fontSize: '0.95rem',
+              }}
             >
-              {loading ? 'Creating Board...' : 'Complete & Launch'} <ShieldCheck size={16} />
+              {loading ? (
+                <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span className="loading-spinner" style={{ width: '18px', height: '18px', borderWidth: '2px' }} />
+                  Creating Board...
+                </span>
+              ) : (
+                <>
+                  Complete & Launch <ShieldCheck size={16} />
+                </>
+              )}
             </button>
           </div>
         )}
 
-        <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '0.85rem' }}>
+        {/* Login Link */}
+        <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '0.88rem', color: 'var(--ui-text-muted)' }}>
           <span>Already registered? </span>
-          <Link href="/login" style={{ fontWeight: 700, color: 'var(--ui-accent)' }}>
-            Log in with PIN
+          <Link
+            href="/login"
+            style={{
+              fontWeight: 700,
+              color: 'var(--ui-accent)',
+              textDecoration: 'none',
+            }}
+          >
+            Log in with PIN →
           </Link>
         </div>
       </div>

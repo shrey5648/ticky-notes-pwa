@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { User, Note } from '@/lib/types';
+import { User } from '@/lib/types';
 import {
   Plus,
   Search,
@@ -13,14 +13,11 @@ import {
   WifiOff,
   LogOut,
   Archive,
-  User as UserIcon,
   Users,
   Filter,
   X,
-  Monitor,
-  CheckCircle2,
-  ExternalLink,
   Laptop,
+  CheckCircle2,
 } from 'lucide-react';
 
 interface ToolbarProps {
@@ -79,6 +76,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   const [showColorFilter, setShowColorFilter] = useState(false);
   const [showInstallModal, setShowInstallModal] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
+  const [searchFocused, setSearchFocused] = useState(false);
 
   useEffect(() => {
     // Check if running in standalone mode (installed app window)
@@ -113,217 +111,329 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   return (
     <header className="top-toolbar">
       {/* Create Note Button */}
-      <button className="btn-primary" onClick={onCreateNote} title="Create new sticky note">
-        <Plus size={18} /> New Note
+      <button className="btn-primary" onClick={onCreateNote} title="Create new sticky note" id="btn-create-note">
+        <Plus size={17} /> New Note
       </button>
 
       {/* Search Input */}
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-        <Search size={15} style={{ position: 'absolute', left: '10px', color: 'var(--ui-text-muted)' }} />
+        <Search
+          size={14}
+          style={{
+            position: 'absolute',
+            left: '11px',
+            color: searchFocused ? 'var(--ui-accent)' : 'var(--ui-text-muted)',
+            transition: 'color 0.15s',
+            zIndex: 1,
+          }}
+        />
         <input
           type="text"
           placeholder="Search notes..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
+          onFocus={() => setSearchFocused(true)}
+          onBlur={() => setSearchFocused(false)}
+          id="search-notes"
           style={{
-            padding: '6px 12px 6px 30px',
-            borderRadius: '16px',
-            border: '1px solid var(--ui-border)',
+            padding: '7px 12px 7px 30px',
+            borderRadius: 'var(--radius-pill)',
+            border: `1.5px solid ${searchFocused ? 'var(--ui-accent)' : 'var(--ui-border)'}`,
             background: 'var(--ui-bg)',
             color: 'var(--ui-text)',
-            fontSize: '0.85rem',
-            width: '160px',
+            fontSize: '0.84rem',
+            width: searchFocused ? '200px' : '150px',
             outline: 'none',
+            transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+            boxShadow: searchFocused ? '0 0 0 3px var(--ui-accent-light)' : 'none',
           }}
         />
+        {searchQuery && (
+          <button
+            className="btn-icon"
+            style={{ width: '22px', height: '22px', position: 'absolute', right: '6px' }}
+            onClick={() => onSearchChange('')}
+          >
+            <X size={12} />
+          </button>
+        )}
       </div>
 
       {/* Filter Toggles */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-        {/* Color filter dropdown */}
-        <button
-          className="btn-icon"
-          onClick={() => setShowColorFilter(!showColorFilter)}
-          title="Filter by color"
-          style={{ background: selectedColor ? selectedColor : 'transparent' }}
-        >
-          <Filter size={16} />
-        </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+        {/* Color filter */}
+        <div style={{ position: 'relative' }}>
+          <button
+            className="btn-icon"
+            onClick={() => setShowColorFilter(!showColorFilter)}
+            title="Filter by color"
+            id="btn-filter-color"
+            style={{
+              background: selectedColor ? selectedColor : 'transparent',
+              border: selectedColor ? '2px solid var(--ui-accent)' : 'none',
+              width: '34px',
+              height: '34px',
+            }}
+          >
+            <Filter size={15} />
+          </button>
+
+          {/* Color Popover */}
+          {showColorFilter && (
+            <div className="color-picker-popover" style={{ gridTemplateColumns: 'repeat(4, 1fr)', minWidth: '140px' }}>
+              <button
+                onClick={() => { onColorSelect(null); setShowColorFilter(false); }}
+                className="color-swatch"
+                style={{
+                  background: 'linear-gradient(135deg, #eee, #ccc)',
+                  gridColumn: 'span 4',
+                  width: '100%',
+                  height: '24px',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--ui-border)',
+                  cursor: 'pointer',
+                  fontSize: '0.7rem',
+                  fontWeight: 600,
+                  color: '#666',
+                }}
+              >
+                All Colors
+              </button>
+              {COLOR_PRESETS.map((cp) => (
+                <button
+                  key={cp.value}
+                  onClick={() => { onColorSelect(cp.value); setShowColorFilter(false); }}
+                  className={`color-swatch ${selectedColor === cp.value ? 'active' : ''}`}
+                  style={{ backgroundColor: cp.value, border: '1px solid rgba(0,0,0,0.15)' }}
+                  title={cp.name}
+                />
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Pinned filter */}
         <button
           className="btn-icon"
           onClick={onTogglePinnedOnly}
-          title="Show pinned notes only"
-          style={{ background: showPinnedOnly ? 'rgba(230, 81, 0, 0.2)' : 'transparent' }}
+          title="Pinned notes"
+          id="btn-filter-pinned"
+          style={{
+            background: showPinnedOnly ? 'var(--ui-accent-light)' : 'transparent',
+            color: showPinnedOnly ? 'var(--ui-accent)' : 'inherit',
+            width: '34px',
+            height: '34px',
+          }}
         >
-          <Pin size={16} style={{ color: showPinnedOnly ? '#e65100' : 'inherit' }} />
-        </button>
-
-        {/* Shared filter */}
-        <button
-          className="btn-icon"
-          onClick={onToggleSharedOnly}
-          title="Show shared notes only"
-          style={{ background: showSharedOnly ? 'rgba(230, 81, 0, 0.2)' : 'transparent' }}
-        >
-          <UserIcon size={16} style={{ color: showSharedOnly ? '#e65100' : 'inherit' }} />
+          <Pin size={15} />
         </button>
 
         {/* Archive toggle */}
         <button
           className="btn-icon"
           onClick={onToggleArchived}
-          title={showArchived ? 'View active notes' : 'View archived notes'}
-          style={{ background: showArchived ? 'rgba(230, 81, 0, 0.2)' : 'transparent' }}
+          title={showArchived ? 'View active notes' : 'View archived'}
+          id="btn-filter-archived"
+          style={{
+            background: showArchived ? 'var(--ui-accent-light)' : 'transparent',
+            color: showArchived ? 'var(--ui-accent)' : 'inherit',
+            width: '34px',
+            height: '34px',
+          }}
         >
-          <Archive size={16} style={{ color: showArchived ? '#e65100' : 'inherit' }} />
+          <Archive size={15} />
         </button>
       </div>
 
-      {/* Color Filter Popover */}
-      {showColorFilter && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '52px',
-            left: '210px',
-            background: 'var(--ui-bg)',
-            border: '1px solid var(--ui-border)',
-            borderRadius: '12px',
-            padding: '8px',
-            display: 'flex',
-            gap: '6px',
-            boxShadow: 'var(--shadow-md)',
-            zIndex: 3000,
-          }}
-        >
-          <button
-            onClick={() => {
-              onColorSelect(null);
-              setShowColorFilter(false);
-            }}
-            style={{
-              padding: '2px 8px',
-              fontSize: '0.75rem',
-              borderRadius: '8px',
-              border: '1px solid var(--ui-border)',
-              background: 'transparent',
-              cursor: 'pointer',
-            }}
-          >
-            All
-          </button>
-          {COLOR_PRESETS.map((cp) => (
-            <button
-              key={cp.value}
-              onClick={() => {
-                onColorSelect(cp.value);
-                setShowColorFilter(false);
-              }}
-              style={{
-                width: '20px',
-                height: '20px',
-                borderRadius: '50%',
-                backgroundColor: cp.value,
-                border: '1px solid rgba(0,0,0,0.2)',
-                cursor: 'pointer',
-              }}
-              title={cp.name}
-            />
-          ))}
-        </div>
-      )}
+      {/* Divider */}
+      <div style={{ width: '1px', height: '22px', background: 'var(--ui-border)', flexShrink: 0 }} />
 
-      {/* Online / Offline Status Badge */}
+      {/* Online / Offline Status */}
       <div
-        title={isOnline ? (syncing ? 'Syncing...' : 'Online (Synced)') : 'Offline mode — changes cached locally'}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '4px',
-          padding: '4px 8px',
-          borderRadius: '12px',
-          fontSize: '0.75rem',
-          fontWeight: 600,
-          background: isOnline ? 'rgba(76, 175, 80, 0.15)' : 'rgba(255, 152, 0, 0.15)',
-          color: isOnline ? '#2e7d32' : '#e65100',
-        }}
+        className={`status-badge ${isOnline ? (syncing ? 'online syncing' : 'online') : 'offline'}`}
+        title={isOnline ? (syncing ? 'Syncing...' : 'Online (Synced)') : 'Offline — changes cached locally'}
       >
-        {isOnline ? <Wifi size={13} /> : <WifiOff size={13} />}
+        <span className="status-dot" />
         <span>{isOnline ? (syncing ? 'Syncing' : 'Online') : 'Offline'}</span>
       </div>
 
-      {/* PWA Install Button */}
+      {/* PWA Install */}
       <button
         className="btn-icon"
         onClick={handleInstallPWA}
-        title={isStandalone ? "Installed as Standalone App" : "Install as Standalone Desktop App"}
-        style={{ color: isStandalone ? '#4caf50' : 'inherit' }}
+        title={isStandalone ? 'Installed as Standalone App' : 'Install as Desktop App'}
+        id="btn-install-pwa"
+        style={{
+          color: isStandalone ? 'var(--ui-success)' : 'inherit',
+          width: '34px',
+          height: '34px',
+        }}
       >
-        <Download size={16} />
+        {isStandalone ? <CheckCircle2 size={15} /> : <Download size={15} />}
       </button>
 
-      {/* Dark / Light Theme Toggle */}
-      <button className="btn-icon" onClick={onToggleTheme} title="Toggle theme">
-        {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+      {/* Theme Toggle */}
+      <button
+        className="btn-icon"
+        onClick={onToggleTheme}
+        title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+        id="btn-toggle-theme"
+        style={{ width: '34px', height: '34px' }}
+      >
+        {theme === 'light' ? <Moon size={15} /> : <Sun size={15} />}
       </button>
 
-      {/* User info & Logout */}
+      {/* User Info */}
       {user && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '4px' }}>
-          <button className="btn-icon" onClick={onOpenUserManagement} title="Manage Team Users (Add/Delete)">
-            <Users size={16} style={{ color: 'var(--ui-accent)' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '2px' }}>
+          <button
+            className="btn-icon"
+            onClick={onOpenUserManagement}
+            title={user.role === 'admin' ? '👑 Super Admin Control Panel' : 'Manage Team Users'}
+            id="btn-user-management"
+            style={{ width: '34px', height: '34px', position: 'relative' }}
+          >
+            <Users size={15} style={{ color: user.role === 'admin' ? '#ffd700' : 'var(--ui-accent)' }} />
+            {user.role === 'admin' && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: '-2px',
+                  right: '-2px',
+                  fontSize: '0.65rem',
+                }}
+                title="Super Admin"
+              >
+                👑
+              </span>
+            )}
           </button>
-          <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>@{user.username}</span>
-          <button className="btn-icon" onClick={onLogout} title="Sign Out">
-            <LogOut size={16} />
+          <div
+            className="user-avatar"
+            title={`${user.display_name || user.username} ${user.role === 'admin' ? '(Super Admin)' : ''}`}
+            style={{
+              background: user.role === 'admin'
+                ? 'linear-gradient(135deg, #ff9800, #e65100)'
+                : undefined,
+              boxShadow: user.role === 'admin' ? '0 0 8px rgba(255, 152, 0, 0.5)' : undefined,
+            }}
+          >
+            {(user.display_name || user.username).charAt(0).toUpperCase()}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
+            <span style={{ fontSize: '0.82rem', fontWeight: 700, maxWidth: '90px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              @{user.username}
+            </span>
+            {user.role === 'admin' && (
+              <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#ff9800', letterSpacing: '0.04em' }}>
+                👑 ADMIN
+              </span>
+            )}
+          </div>
+          <button
+            className="btn-icon"
+            onClick={onLogout}
+            title="Sign Out"
+            id="btn-logout"
+            style={{ width: '34px', height: '34px' }}
+          >
+            <LogOut size={15} />
           </button>
         </div>
       )}
 
-      {/* PWA Standalone App Instructions Modal */}
+      {/* PWA Install Instructions Modal */}
       {showInstallModal && (
         <div className="modal-overlay" style={{ zIndex: 9999 }}>
-          <div className="modal-content" style={{ maxWidth: '520px', width: '90%' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Laptop size={22} style={{ color: '#d7a15c' }} />
-                <h3 style={{ margin: 0, fontSize: '1.2rem' }}>Open as Separate Window & Icon</h3>
+          <div className="modal-content" style={{ maxWidth: '520px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div
+                  style={{
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '12px',
+                    background: 'linear-gradient(135deg, var(--ui-accent), #ff6d00)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Laptop size={20} color="#fff" />
+                </div>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 700 }}>Install as Desktop App</h3>
               </div>
               <button className="btn-icon" onClick={() => setShowInstallModal(false)}>
                 <X size={18} />
               </button>
             </div>
 
-            <p style={{ fontSize: '0.9rem', color: 'var(--ui-text-muted)', lineHeight: '1.5', marginTop: 0 }}>
-              To open Sticky Notes in its <strong>own window with a separate app icon</strong> on Linux/Windows/Mac instead of a browser tab, follow these 2 simple steps in Chrome:
+            <p style={{ fontSize: '0.9rem', color: 'var(--ui-text-muted)', lineHeight: '1.6', marginBottom: '20px' }}>
+              Open Sticky Notes in its <strong>own window with a separate app icon</strong> on Linux/Windows/Mac:
             </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', margin: '20px 0' }}>
-              <div style={{ display: 'flex', gap: '12px', background: 'rgba(215, 161, 92, 0.1)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(215, 161, 92, 0.3)' }}>
-                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#d7a15c', color: '#fff', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>1</div>
-                <div>
-                  <h4 style={{ margin: '0 0 4px 0', fontSize: '0.95rem' }}>Install as App in Chrome</h4>
-                  <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--ui-text-muted)' }}>
-                    In Chrome's address bar (URL bar), click the <strong>Install</strong> icon (looks like a monitor with a down arrow). Or click Chrome <strong>Menu (⋮) &rarr; Save and Share &rarr; Install Sticky Notes</strong>.
-                  </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
+              {[
+                {
+                  step: 1,
+                  title: 'Install as App in Chrome',
+                  desc: 'In Chrome\'s address bar, click the Install icon. Or Chrome Menu (⋮) → Save and Share → Install Sticky Notes.',
+                },
+                {
+                  step: 2,
+                  title: 'Enable "Open as Window"',
+                  desc: 'Open chrome://apps, right-click Sticky Notes, and ensure "Open as window" is checked.',
+                },
+              ].map((item) => (
+                <div
+                  key={item.step}
+                  style={{
+                    display: 'flex',
+                    gap: '12px',
+                    padding: '14px',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--ui-accent-light)',
+                    border: '1px solid var(--ui-border)',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '50%',
+                      background: 'var(--ui-accent)',
+                      color: '#fff',
+                      fontWeight: 'bold',
+                      fontSize: '0.85rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {item.step}
+                  </div>
+                  <div>
+                    <h4 style={{ fontSize: '0.92rem', fontWeight: 600, marginBottom: '4px' }}>{item.title}</h4>
+                    <p style={{ fontSize: '0.82rem', color: 'var(--ui-text-muted)', margin: 0, lineHeight: '1.5' }}>
+                      {item.desc}
+                    </p>
+                  </div>
                 </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: '12px', background: 'rgba(215, 161, 92, 0.1)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(215, 161, 92, 0.3)' }}>
-                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#d7a15c', color: '#fff', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>2</div>
-                <div>
-                  <h4 style={{ margin: '0 0 4px 0', fontSize: '0.95rem' }}>Enable "Open as Window"</h4>
-                  <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--ui-text-muted)' }}>
-                    Open <code>chrome://apps</code> in Chrome address bar, right-click <strong>Sticky Notes</strong>, and ensure <strong>"Open as window"</strong> is checked.
-                  </p>
-                </div>
-              </div>
+              ))}
             </div>
 
-            <div style={{ background: 'var(--ui-bg)', padding: '10px 14px', borderRadius: '8px', border: '1px dashed var(--ui-border)', fontSize: '0.82rem', color: 'var(--ui-text-muted)', marginBottom: '18px' }}>
-              💡 <strong>Tip:</strong> Once installed, you will find a dedicated <strong>Sticky Notes</strong> desktop shortcut icon in your Linux system application menu and taskbar!
+            <div
+              style={{
+                padding: '10px 14px',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px dashed var(--ui-border)',
+                fontSize: '0.82rem',
+                color: 'var(--ui-text-muted)',
+                marginBottom: '20px',
+              }}
+            >
+              💡 <strong>Tip:</strong> Once installed, you&apos;ll find a dedicated Sticky Notes shortcut in your application menu!
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
@@ -334,9 +444,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                     setShowInstallModal(false);
                     deferredPrompt.prompt();
                   }}
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
                 >
-                  <Download size={15} /> Trigger Chrome Install
+                  <Download size={14} /> Install Now
                 </button>
               )}
               <button className="btn-secondary" onClick={() => setShowInstallModal(false)}>
@@ -349,4 +458,3 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     </header>
   );
 };
-

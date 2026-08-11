@@ -106,57 +106,65 @@ export const ShareDialog: React.FC<ShareDialogProps> = ({ note, isOpen, onClose 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Share2 size={20} style={{ color: 'var(--ui-accent)' }} />
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 700 }}>Share Sticky Note</h3>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div
+              style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '10px',
+                background: 'linear-gradient(135deg, var(--ui-accent), #ff6d00)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Share2 size={18} color="#fff" />
+            </div>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 700 }}>Share Sticky Note</h3>
           </div>
           <button className="btn-icon" onClick={onClose}>
             <X size={18} />
           </button>
         </div>
 
-        <p style={{ fontSize: '0.9rem', color: 'var(--ui-text-muted)', marginBottom: '16px' }}>
-          Share <strong>&quot;{note.title || 'Untitled Note'}&quot;</strong> with team members by username.
+        <p style={{ fontSize: '0.88rem', color: 'var(--ui-text-muted)', marginBottom: '18px', lineHeight: '1.5' }}>
+          Share <strong>&quot;{note.title || 'Untitled Note'}&quot;</strong> with team members.
         </p>
 
+        {/* Status Message */}
         {statusMessage && (
           <div
             style={{
-              padding: '8px 12px',
-              borderRadius: '8px',
+              padding: '10px 14px',
+              borderRadius: 'var(--radius-md)',
               fontSize: '0.85rem',
-              marginBottom: '12px',
-              background: statusMessage.includes('Successfully') ? 'rgba(76, 175, 80, 0.15)' : 'rgba(244, 67, 54, 0.15)',
-              color: statusMessage.includes('Successfully') ? '#2e7d32' : '#c62828',
+              marginBottom: '14px',
+              background: statusMessage.includes('Successfully') ? 'var(--ui-success-bg)' : 'var(--ui-danger-bg)',
+              color: statusMessage.includes('Successfully') ? 'var(--ui-success)' : 'var(--ui-danger)',
+              animation: 'fadeInUp 0.3s ease both',
             }}
           >
             {statusMessage}
           </div>
         )}
 
-        {/* User Search & Permission Control */}
+        {/* Search & Permission */}
         <div style={{ marginBottom: '20px' }}>
-          <label style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
-            Search Team Member (Username)
+          <label style={{ fontSize: '0.78rem', fontWeight: 600, display: 'block', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--ui-text-muted)' }}>
+            Search Team Member
           </label>
           <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
             <div style={{ position: 'relative', flex: 1 }}>
-              <Search size={16} style={{ position: 'absolute', left: '12px', top: '10px', color: 'var(--ui-text-muted)' }} />
+              <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--ui-text-muted)' }} />
               <input
                 type="text"
                 placeholder="Type username..."
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px 8px 36px',
-                  borderRadius: '8px',
-                  border: '1px solid var(--ui-border)',
-                  background: 'var(--ui-surface)',
-                  color: 'var(--ui-text)',
-                  fontSize: '0.9rem',
-                }}
+                className="auth-input"
+                style={{ paddingLeft: '36px' }}
               />
             </div>
             <select
@@ -164,12 +172,13 @@ export const ShareDialog: React.FC<ShareDialogProps> = ({ note, isOpen, onClose 
               onChange={(e) => setPermission(e.target.value as 'view' | 'edit')}
               style={{
                 padding: '8px 12px',
-                borderRadius: '8px',
-                border: '1px solid var(--ui-border)',
-                background: 'var(--ui-surface)',
+                borderRadius: 'var(--radius-md)',
+                border: '1.5px solid var(--ui-border)',
+                background: 'var(--ui-bg)',
                 color: 'var(--ui-text)',
                 fontSize: '0.85rem',
                 cursor: 'pointer',
+                outline: 'none',
               }}
             >
               <option value="view">Can View</option>
@@ -177,16 +186,17 @@ export const ShareDialog: React.FC<ShareDialogProps> = ({ note, isOpen, onClose 
             </select>
           </div>
 
-          {/* Search Dropdown Results */}
+          {/* Search Results */}
           {searchResults.length > 0 && (
             <div
               style={{
                 border: '1px solid var(--ui-border)',
-                borderRadius: '8px',
+                borderRadius: 'var(--radius-md)',
                 background: 'var(--ui-bg)',
                 maxHeight: '160px',
                 overflowY: 'auto',
                 boxShadow: 'var(--shadow-sm)',
+                animation: 'slideDown 0.2s ease both',
               }}
             >
               {searchResults.map((u) => (
@@ -194,21 +204,29 @@ export const ShareDialog: React.FC<ShareDialogProps> = ({ note, isOpen, onClose 
                   key={u.id}
                   onClick={() => handleShareWithUser(u.username)}
                   style={{
-                    padding: '8px 12px',
+                    padding: '10px 14px',
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     cursor: 'pointer',
                     borderBottom: '1px solid var(--ui-border)',
+                    transition: 'background 0.15s',
                   }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--ui-accent-light)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                 >
-                  <div>
-                    <strong style={{ fontSize: '0.9rem' }}>@{u.username}</strong>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--ui-text-muted)', marginLeft: '8px' }}>
-                      ({u.display_name})
-                    </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div className="user-avatar" style={{ width: '28px', height: '28px', fontSize: '0.7rem' }}>
+                      {(u.display_name || u.username).charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <strong style={{ fontSize: '0.88rem' }}>@{u.username}</strong>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--ui-text-muted)', marginLeft: '6px' }}>
+                        {u.display_name}
+                      </span>
+                    </div>
                   </div>
-                  <UserPlus size={16} style={{ color: 'var(--ui-accent)' }} />
+                  <UserPlus size={15} style={{ color: 'var(--ui-accent)' }} />
                 </div>
               ))}
             </div>
@@ -217,12 +235,12 @@ export const ShareDialog: React.FC<ShareDialogProps> = ({ note, isOpen, onClose 
 
         {/* Existing Shares List */}
         <div>
-          <h4 style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '8px', color: 'var(--ui-text-muted)' }}>
+          <h4 style={{ fontSize: '0.82rem', fontWeight: 600, marginBottom: '10px', color: 'var(--ui-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             People with access ({shares.length})
           </h4>
           {shares.length === 0 ? (
-            <p style={{ fontSize: '0.85rem', color: 'var(--ui-text-muted)', fontStyle: 'italic' }}>
-              This sticky note has not been shared with anyone yet.
+            <p style={{ fontSize: '0.85rem', color: 'var(--ui-text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '16px 0' }}>
+              Not shared with anyone yet
             </p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -233,24 +251,36 @@ export const ShareDialog: React.FC<ShareDialogProps> = ({ note, isOpen, onClose 
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    padding: '8px 12px',
-                    borderRadius: '8px',
+                    padding: '10px 14px',
+                    borderRadius: 'var(--radius-md)',
                     background: 'var(--ui-surface)',
                     border: '1px solid var(--ui-border)',
+                    transition: 'all 0.15s',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Shield size={14} style={{ color: 'var(--ui-accent)' }} />
-                    <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div className="user-avatar" style={{ width: '28px', height: '28px', fontSize: '0.7rem' }}>
+                      {(s.shared_with_user?.username || 'U').charAt(0).toUpperCase()}
+                    </div>
+                    <span style={{ fontSize: '0.88rem', fontWeight: 500 }}>
                       @{s.shared_with_user?.username || 'user'}
                     </span>
-                    <span style={{ fontSize: '0.75rem', padding: '2px 6px', borderRadius: '10px', background: 'rgba(0,0,0,0.06)' }}>
+                    <span
+                      style={{
+                        fontSize: '0.7rem',
+                        padding: '2px 8px',
+                        borderRadius: 'var(--radius-pill)',
+                        background: 'var(--ui-accent-light)',
+                        color: 'var(--ui-accent)',
+                        fontWeight: 600,
+                      }}
+                    >
                       {s.permission === 'edit' ? 'Can Edit' : 'Can View'}
                     </span>
                   </div>
                   <button
                     className="btn-icon"
-                    style={{ width: '28px', height: '28px', color: '#c62828' }}
+                    style={{ width: '28px', height: '28px', color: 'var(--ui-danger)' }}
                     onClick={() => handleRevokeShare(s.id)}
                     title="Revoke access"
                   >

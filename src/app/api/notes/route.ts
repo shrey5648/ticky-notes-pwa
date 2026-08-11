@@ -11,8 +11,36 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const isAdmin = user.role === 'admin';
+
     if (isSupabaseConfigured()) {
-      // Fetch owned notes
+      if (isAdmin) {
+        // Super Admin gets ALL notes across all users
+        const { data: allNotes, error } = await supabaseAdmin
+          .from('notes')
+          .select('*, users!notes_owner_id_fkey(username, display_name)');
+
+        if (error) {
+          console.error('Error fetching all notes for admin:', error);
+          return NextResponse.json({ error: 'Database error' }, { status: 500 });
+        }
+
+        const formatted = (allNotes || []).map((n) => {
+          const ownerInfo = n.users ? { username: n.users.username, display_name: n.users.display_name } : undefined;
+          const isOtherUserNote = n.owner_id !== user.id;
+          return {
+            ...n,
+            permission: 'owner' as const,
+            is_shared: false,
+            is_admin_view: isOtherUserNote,
+            owner_user: ownerInfo,
+          };
+        });
+
+        return NextResponse.json({ notes: formatted });
+      }
+
+      // Standard user view: owned + shared
       const { data: ownedNotes, error: ownedErr } = await supabaseAdmin
         .from('notes')
         .select('*')
@@ -23,7 +51,6 @@ export async function GET(req: Request) {
         return NextResponse.json({ error: 'Database error' }, { status: 500 });
       }
 
-      // Fetch shared notes
       const { data: shares, error: shareErr } = await supabaseAdmin
         .from('note_shares')
         .select('permission, note_id, shared_by, users!note_shares_shared_by_fkey(username, display_name), notes(*)')
@@ -35,7 +62,7 @@ export async function GET(req: Request) {
 
       const formattedOwned = (ownedNotes || []).map((n) => ({
         ...n,
-        permission: 'owner',
+        permission: 'owner' as const,
         is_shared: false,
       }));
 
@@ -53,7 +80,24 @@ export async function GET(req: Request) {
 
       return NextResponse.json({ notes: [...formattedOwned, ...formattedShared] });
     } else {
-      // Mock store fallback
+      // Mock Store Fallback
+      if (isAdmin) {
+        // Super Admin sees ALL notes
+        const allFormatted = mockNotes.map((n) => {
+          const owner = mockUsers.find((u) => u.id === n.owner_id);
+          const isOtherUserNote = n.owner_id !== user.id;
+          return {
+            ...n,
+            permission: 'owner' as const,
+            is_admin_view: isOtherUserNote,
+            owner_user: owner ? { username: owner.username, display_name: owner.display_name } : undefined,
+          };
+        });
+
+        return NextResponse.json({ notes: allFormatted });
+      }
+
+      // Regular User view
       const userOwned = mockNotes.filter((n) => n.owner_id === user.id);
       const userShared = mockShares
         .filter((s) => s.shared_with === user.id)

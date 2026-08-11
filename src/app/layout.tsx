@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#d7a15c',
+  themeColor: '#e65100',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
@@ -29,7 +29,24 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" data-theme="light">
+    <html lang="en" data-theme="light" suppressHydrationWarning>
+      <head>
+        {/* Prevent FOUC by setting theme before paint */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                var saved = localStorage.getItem('app-theme');
+                if (saved === 'dark') {
+                  document.documentElement.setAttribute('data-theme', 'dark');
+                } else if (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                  document.documentElement.setAttribute('data-theme', 'dark');
+                }
+              })();
+            `,
+          }}
+        />
+      </head>
       <body>
         {children}
         <script

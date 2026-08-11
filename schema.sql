@@ -1,9 +1,10 @@
--- Create users table (custom username + PIN authentication)
+-- Create users table (custom username + PIN authentication with role support)
 CREATE TABLE IF NOT EXISTS public.users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   username TEXT UNIQUE NOT NULL,
   pin_hash TEXT NOT NULL,
   display_name TEXT NOT NULL,
+  role TEXT DEFAULT 'user', -- 'admin' or 'user'
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -39,3 +40,4 @@ CREATE INDEX IF NOT EXISTS idx_notes_owner ON public.notes(owner_id);
 CREATE INDEX IF NOT EXISTS idx_notes_archived ON public.notes(is_archived);
 CREATE INDEX IF NOT EXISTS idx_shares_with ON public.note_shares(shared_with);
 CREATE INDEX IF NOT EXISTS idx_shares_note ON public.note_shares(note_id);
+CREATE INDEX IF NOT EXISTS idx_users_role ON public.users(role);

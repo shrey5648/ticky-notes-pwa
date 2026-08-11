@@ -1,12 +1,13 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { Note } from '@/lib/types';
 import { Pin, Share2, Trash2, Edit3, Lock, Archive, User as UserIcon } from 'lucide-react';
 
 interface StickyNoteProps {
   note: Note;
+  index: number;
   onEdit: (note: Note) => void;
   onDelete: (id: string) => void;
   onPinToggle: (id: string, isPinned: boolean) => void;
@@ -17,6 +18,7 @@ interface StickyNoteProps {
 
 export const StickyNote: React.FC<StickyNoteProps> = ({
   note,
+  index,
   onEdit,
   onDelete,
   onPinToggle,
@@ -24,6 +26,7 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
   onShare,
   onBringToFront,
 }) => {
+  const [isHovered, setIsHovered] = useState(false);
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: note.id,
     data: { note },
@@ -42,14 +45,13 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
 
   const noteColorClass = colorClassMap[note.color] || 'note-color-yellow';
 
-  // Slight slight random rotation based on ID string hash for realistic paper look
+  // Slight random rotation for realistic paper look
   const getRotation = (id: string) => {
     let hash = 0;
     for (let i = 0; i < id.length; i++) {
       hash += id.charCodeAt(i);
     }
-    const deg = (hash % 7) - 3; // -3 deg to +3 deg
-    return deg;
+    return (hash % 7) - 3;
   };
 
   const rotation = getRotation(note.id);
@@ -59,8 +61,9 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
     left: `${note.position_x}px`,
     zIndex: isDragging ? 9999 : note.z_index,
     transform: transform
-      ? `translate3d(${transform.x}px, ${transform.y}px, 0) scale(1.03)`
+      ? `translate3d(${transform.x}px, ${transform.y}px, 0) scale(1.04)`
       : `rotate(${rotation}deg)`,
+    animation: `popIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) ${index * 0.06}s both`,
   };
 
   const isReadOnly = note.permission === 'view';
@@ -71,6 +74,8 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
       style={style}
       className={`sticky-note-card ${noteColorClass}`}
       onClick={() => onBringToFront(note.id)}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       {...attributes}
       {...listeners}
     >
@@ -83,14 +88,22 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
       {/* Note Header */}
       <div className="note-header" style={{ marginTop: note.is_pinned ? '6px' : '0' }}>
         <h3 className="note-title">{note.title || 'Untitled Note'}</h3>
-        <div style={{ display: 'flex', gap: '4px' }} onClick={(e) => e.stopPropagation()}>
+        <div
+          style={{
+            display: 'flex',
+            gap: '2px',
+            opacity: isHovered ? 1 : 0.3,
+            transition: 'opacity 0.2s ease',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
           <button
             className="btn-icon"
             style={{ width: '26px', height: '26px' }}
-            title={note.is_pinned ? 'Unpin note' : 'Pin note'}
+            title={note.is_pinned ? 'Unpin' : 'Pin'}
             onClick={() => onPinToggle(note.id, !note.is_pinned)}
           >
-            <Pin size={14} style={{ color: note.is_pinned ? '#d32f2f' : '#666' }} />
+            <Pin size={13} style={{ color: note.is_pinned ? '#d32f2f' : '#666' }} />
           </button>
           {!isReadOnly && (
             <button
@@ -99,7 +112,7 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
               title="Edit note"
               onClick={() => onEdit(note)}
             >
-              <Edit3 size={14} />
+              <Edit3 size={13} />
             </button>
           )}
         </div>
@@ -112,73 +125,100 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
           e.stopPropagation();
           if (!isReadOnly) onEdit(note);
         }}
-        dangerouslySetInnerHTML={{ __html: note.content || '<em>Click to write note...</em>' }}
+        dangerouslySetInnerHTML={{ __html: note.content || '<em style="opacity:0.5">Click to write...</em>' }}
       />
 
-      {/* Footer / Shared Indicator / Action Menu */}
+      {/* Footer */}
       <div
         style={{
-          marginTop: '12px',
+          marginTop: 'auto',
+          paddingTop: '8px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          fontSize: '0.75rem',
-          color: 'rgba(0,0,0,0.6)',
-          borderTop: '1px dashed rgba(0,0,0,0.12)',
-          paddingTop: '6px',
+          fontSize: '0.73rem',
+          color: 'rgba(0,0,0,0.5)',
+          borderTop: '1px dashed rgba(0,0,0,0.08)',
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Shared Badge */}
-        {note.is_shared && note.shared_by_user ? (
+      {/* Shared badge, Admin owner badge, or date */}
+        {note.is_admin_view && note.owner_user ? (
           <span
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '4px',
-              background: 'rgba(0,0,0,0.06)',
-              padding: '2px 6px',
+              gap: '3px',
+              background: 'rgba(255, 152, 0, 0.15)',
+              color: '#bf360c',
+              padding: '2px 8px',
+              borderRadius: '10px',
+              fontWeight: 700,
+              fontSize: '0.7rem',
+              border: '1px solid rgba(255, 152, 0, 0.3)',
+            }}
+            title={`Owner: ${note.owner_user.display_name} (@${note.owner_user.username})`}
+          >
+            👑 @{note.owner_user.username}
+          </span>
+        ) : note.is_shared && note.shared_by_user ? (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '3px',
+              background: 'rgba(0,0,0,0.05)',
+              padding: '2px 7px',
               borderRadius: '10px',
               fontWeight: 500,
+              fontSize: '0.7rem',
             }}
           >
-            <UserIcon size={12} /> @{note.shared_by_user.username}{' '}
-            {isReadOnly && <Lock size={10} style={{ marginLeft: '2px' }} />}
+            <UserIcon size={10} /> @{note.shared_by_user.username}
+            {isReadOnly && <Lock size={9} style={{ marginLeft: '2px' }} />}
           </span>
         ) : (
-          <span style={{ fontSize: '0.7rem' }}>
+          <span style={{ fontSize: '0.68rem' }}>
             {new Date(note.updated_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
           </span>
         )}
 
-        {/* Action icons */}
-        <div style={{ display: 'flex', gap: '4px' }}>
+        {/* Action Buttons — appear on hover */}
+        <div
+          style={{
+            display: 'flex',
+            gap: '2px',
+            opacity: isHovered ? 1 : 0,
+            transform: isHovered ? 'translateX(0)' : 'translateX(4px)',
+            transition: 'all 0.2s ease',
+          }}
+        >
           {note.permission === 'owner' && (
             <button
               className="btn-icon"
               style={{ width: '24px', height: '24px' }}
-              title="Share sticky note"
+              title="Share"
               onClick={() => onShare(note)}
             >
-              <Share2 size={13} />
+              <Share2 size={12} />
             </button>
           )}
           <button
             className="btn-icon"
             style={{ width: '24px', height: '24px' }}
-            title={note.is_archived ? 'Unarchive note' : 'Archive note'}
+            title={note.is_archived ? 'Unarchive' : 'Archive'}
             onClick={() => onArchiveToggle(note.id, !note.is_archived)}
           >
-            <Archive size={13} />
+            <Archive size={12} />
           </button>
           {note.permission === 'owner' && (
             <button
               className="btn-icon"
-              style={{ width: '24px', height: '24px', color: '#c62828' }}
-              title="Delete sticky note"
+              style={{ width: '24px', height: '24px', color: 'var(--ui-danger)' }}
+              title="Delete"
               onClick={() => onDelete(note.id)}
             >
-              <Trash2 size={13} />
+              <Trash2 size={12} />
             </button>
           )}
         </div>

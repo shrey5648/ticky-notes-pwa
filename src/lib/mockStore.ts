@@ -1,34 +1,36 @@
 import { User, Note, NoteShare } from './types';
 
-// Initial demo user
+// Initial users with role definition (ignek is Super Admin)
 export const mockUsers: User[] = [
   {
     id: 'user-demo-1',
     username: 'ignek',
     display_name: 'Ignek User',
+    role: 'admin',
     created_at: new Date().toISOString(),
   },
   {
     id: 'user-demo-2',
     username: 'alex',
     display_name: 'Alex Rivera',
+    role: 'user',
     created_at: new Date().toISOString(),
   }
 ];
 
-// Hash for PIN "1234"
+// Bcrypt Hash for user initial authentication
 export const mockUserHashes: Record<string, string> = {
-  'user-demo-1': '$2a$10$w8.1Z31P38.k7H7dY1Gg5.0uR0tW7yZ6N5m6O7P8Q9R0S1T2U3V4W',
-  'user-demo-2': '$2a$10$w8.1Z31P38.k7H7dY1Gg5.0uR0tW7yZ6N5m6O7P8Q9R0S1T2U3V4W',
+  'user-demo-1': '$2b$10$B/M2SKxNTWL5afegjl/nnuDLkejEsAJvzzll1gJVRU7pluYNHT7Oq',
+  'user-demo-2': '$2b$10$B/M2SKxNTWL5afegjl/nnuDLkejEsAJvzzll1gJVRU7pluYNHT7Oq',
 };
 
-// Initial demo notes
+// Initial notes
 export const mockNotes: Note[] = [
   {
     id: 'note-1',
     owner_id: 'user-demo-1',
-    title: '💡 Welcome to Sticky Notes!',
-    content: '<p>Welcome to your <strong>Sticky Notes PWA</strong>! You can drag notes around, pin important items, change colors, edit in rich text, and share notes with team members.</p>',
+    title: '💡 Welcome Super Admin!',
+    content: '<p>As a <strong>Super Admin</strong>, you can see and manage all user sticky notes across the workspace, manage user accounts, change user roles, and reset PINs!</p>',
     color: '#FFEB3B', // Yellow
     position_x: 60,
     position_y: 60,
@@ -43,7 +45,7 @@ export const mockNotes: Note[] = [
     id: 'note-2',
     owner_id: 'user-demo-1',
     title: '📌 Project Roadmap',
-    content: '<ul><li>[x] Design cork board canvas</li><li>[x] Add drag & drop support</li><li>[x] Implement PIN authentication</li><li>[/] PWA desktop app install</li></ul>',
+    content: '<ul><li>[x] Design cork board canvas</li><li>[x] Add drag & drop support</li><li>[x] Implement PIN authentication</li><li>[x] Super Admin Workspace Controls</li></ul>',
     color: '#81D4FA', // Blue
     position_x: 420,
     position_y: 60,
@@ -72,8 +74,8 @@ export const mockNotes: Note[] = [
   {
     id: 'note-4',
     owner_id: 'user-demo-2',
-    title: '🤝 Shared Team Goal',
-    content: '<p>Hey team! Let\'s coordinate on the upcoming release notes. Feel free to edit this sticky note!</p>',
+    title: '🤝 Alex\'s Project Note',
+    content: '<p>This is a sticky note created by Alex. Super Admins can view, move, edit, or manage this note directly from the admin canvas!</p>',
     color: '#A5D6A7', // Green
     position_x: 540,
     position_y: 380,
@@ -82,22 +84,8 @@ export const mockNotes: Note[] = [
     z_index: 8,
     created_at: new Date(Date.now() - 3600000 * 24).toISOString(),
     updated_at: new Date(Date.now() - 3600000 * 24).toISOString(),
-    shared_by_user: {
-      username: 'alex',
-      display_name: 'Alex Rivera'
-    },
-    permission: 'edit',
-    is_shared: true
+    permission: 'owner'
   }
 ];
 
-export const mockShares: NoteShare[] = [
-  {
-    id: 'share-1',
-    note_id: 'note-4',
-    shared_by: 'user-demo-2',
-    shared_with: 'user-demo-1',
-    permission: 'edit',
-    created_at: new Date().toISOString()
-  }
-];
+export const mockShares: NoteShare[] = [];

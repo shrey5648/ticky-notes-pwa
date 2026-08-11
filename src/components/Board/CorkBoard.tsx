@@ -52,26 +52,17 @@ export const CorkBoard: React.FC<CorkBoardProps> = ({
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="cork-board" style={{ minWidth: '100vw', minHeight: '100vh', paddingBottom: '200px' }}>
         {notes.length === 0 ? (
-          <div
-            style={{
-              position: 'absolute',
-              top: '40%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              textAlign: 'center',
-              color: 'var(--ui-text-muted)',
-              pointerEvents: 'none',
-            }}
-          >
-            <div style={{ fontSize: '3rem', marginBottom: '8px' }}>📍</div>
-            <h3 style={{ fontSize: '1.4rem', fontWeight: 600, marginBottom: '4px' }}>Your Cork Board is Empty</h3>
-            <p style={{ fontSize: '0.95rem' }}>Click the <strong>+ New Sticky Note</strong> button above to create one!</p>
+          <div className="empty-board">
+            <div className="empty-icon">📝</div>
+            <h3>Your Board is Empty</h3>
+            <p>Click <strong>+ New Note</strong> to create your first sticky note!</p>
           </div>
         ) : (
-          notes.map((note) => (
+          notes.map((note, index) => (
             <StickyNote
               key={note.id}
               note={note}
+              index={index}
               onEdit={onEditNote}
               onDelete={onDeleteNote}
               onPinToggle={onPinToggle}

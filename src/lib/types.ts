@@ -2,6 +2,7 @@ export interface User {
   id: string;
   username: string;
   display_name: string;
+  role?: 'admin' | 'user';
   created_at?: string;
 }
 
@@ -18,13 +19,18 @@ export interface Note {
   z_index: number;
   created_at: string;
   updated_at: string;
-  // Shared metadata if populated
+  // Metadata for shared or admin views
   shared_by_user?: {
+    username: string;
+    display_name: string;
+  };
+  owner_user?: {
     username: string;
     display_name: string;
   };
   permission?: 'view' | 'edit' | 'owner';
   is_shared?: boolean;
+  is_admin_view?: boolean;
 }
 
 export interface NoteShare {
@@ -52,4 +58,5 @@ export interface JWTPayload {
   id: string;
   username: string;
   display_name: string;
+  role?: 'admin' | 'user';
 }

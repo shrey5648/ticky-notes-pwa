@@ -16,9 +16,10 @@ export async function PUT(
     const resolvedParams = await params;
     const noteId = resolvedParams.id;
     const body = await req.json();
+    const isAdmin = user.role === 'admin';
 
     if (isSupabaseConfigured()) {
-      // Check ownership or edit permission
+      // Check ownership or edit permission unless Super Admin
       const { data: note } = await supabaseAdmin
         .from('notes')
         .select('*')
@@ -29,7 +30,7 @@ export async function PUT(
         return NextResponse.json({ error: 'Note not found' }, { status: 404 });
       }
 
-      if (note.owner_id !== user.id) {
+      if (note.owner_id !== user.id && !isAdmin) {
         // Check share permission
         const { data: share } = await supabaseAdmin
           .from('note_shares')
@@ -79,7 +80,7 @@ export async function PUT(
       const note = mockNotes[noteIndex];
       const isOwner = note.owner_id === user.id;
       const share = mockShares.find((s) => s.note_id === noteId && s.shared_with === user.id);
-      const canEdit = isOwner || (share && share.permission === 'edit');
+      const canEdit = isOwner || isAdmin || (share && share.permission === 'edit');
 
       if (!canEdit) {
         return NextResponse.json({ error: 'Forbidden: Edit permission required' }, { status: 403 });
@@ -112,6 +113,7 @@ export async function DELETE(
 
     const resolvedParams = await params;
     const noteId = resolvedParams.id;
+    const isAdmin = user.role === 'admin';
 
     if (isSupabaseConfigured()) {
       // Check ownership
@@ -125,8 +127,8 @@ export async function DELETE(
         return NextResponse.json({ error: 'Note not found' }, { status: 404 });
       }
 
-      if (note.owner_id !== user.id) {
-        return NextResponse.json({ error: 'Forbidden: Only owner can delete' }, { status: 403 });
+      if (note.owner_id !== user.id && !isAdmin) {
+        return NextResponse.json({ error: 'Forbidden: Only owner or Super Admin can delete' }, { status: 403 });
       }
 
       const { error } = await supabaseAdmin.from('notes').delete().eq('id', noteId);
@@ -142,8 +144,8 @@ export async function DELETE(
         return NextResponse.json({ error: 'Note not found' }, { status: 404 });
       }
 
-      if (mockNotes[noteIndex].owner_id !== user.id) {
-        return NextResponse.json({ error: 'Forbidden: Only owner can delete' }, { status: 403 });
+      if (mockNotes[noteIndex].owner_id !== user.id && !isAdmin) {
+        return NextResponse.json({ error: 'Forbidden: Only owner or Super Admin can delete' }, { status: 403 });
       }
 
       mockNotes.splice(noteIndex, 1);

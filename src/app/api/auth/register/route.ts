@@ -42,8 +42,9 @@ export async function POST(req: Request) {
           username: cleanUsername,
           pin_hash: pinHash,
           display_name: displayName,
+          role: 'user',
         })
-        .select('id, username, display_name')
+        .select('id, username, display_name, role')
         .single();
 
       if (error || !newUser) {
@@ -69,6 +70,7 @@ export async function POST(req: Request) {
         id: `user-${Date.now()}`,
         username: cleanUsername,
         display_name: displayName,
+        role: 'user' as const,
         created_at: new Date().toISOString(),
       };
       mockUsers.push(newUser);
@@ -76,11 +78,14 @@ export async function POST(req: Request) {
       user = newUser;
     }
 
+    const userRole = user.role || 'user';
+
     // Sign JWT token
     const token = await signToken({
       id: user.id,
       username: user.username,
       display_name: user.display_name,
+      role: userRole,
     });
 
     const response = NextResponse.json({
@@ -89,6 +94,7 @@ export async function POST(req: Request) {
         id: user.id,
         username: user.username,
         display_name: user.display_name,
+        role: userRole,
       },
     });
 

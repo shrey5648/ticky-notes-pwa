@@ -14,7 +14,7 @@ export async function GET(req: Request) {
     if (isSupabaseConfigured()) {
       const { data: users, error } = await supabaseAdmin
         .from('users')
-        .select('id, username, display_name, created_at')
+        .select('id, username, display_name, role, created_at')
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -31,6 +31,7 @@ export async function GET(req: Request) {
 
       const formatted = (users || []).map((u) => ({
         ...u,
+        role: u.role || 'user',
         note_count: noteCountMap[u.id] || 0,
       }));
 
@@ -41,6 +42,7 @@ export async function GET(req: Request) {
         const noteCount = mockNotes.filter((n) => n.owner_id === u.id).length;
         return {
           ...u,
+          role: u.role || 'user',
           note_count: noteCount,
         };
       });
@@ -61,7 +63,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { username, pin, display_name } = await req.json();
+    const { username, pin, display_name, role } = await req.json();
 
     if (!username || !pin || pin.length < 4) {
       return NextResponse.json(
@@ -73,6 +75,7 @@ export async function POST(req: Request) {
     const cleanUsername = username.trim().toLowerCase();
     const pinHash = await hashPin(pin);
     const displayName = display_name?.trim() || cleanUsername;
+    const userRole = role === 'admin' ? 'admin' : 'user';
 
     if (isSupabaseConfigured()) {
       // Check duplicate
@@ -95,8 +98,9 @@ export async function POST(req: Request) {
           username: cleanUsername,
           pin_hash: pinHash,
           display_name: displayName,
+          role: userRole,
         })
-        .select('id, username, display_name, created_at')
+        .select('id, username, display_name, role, created_at')
         .single();
 
       if (error || !newUser) {
@@ -119,6 +123,7 @@ export async function POST(req: Request) {
         id: `user-${Date.now()}`,
         username: cleanUsername,
         display_name: displayName,
+        role: userRole as 'admin' | 'user',
         created_at: new Date().toISOString(),
         note_count: 0,
       };

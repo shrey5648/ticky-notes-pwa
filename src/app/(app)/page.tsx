@@ -87,15 +87,18 @@ export default function StickyNotesAppPage() {
           width: '100vw',
           height: '100vh',
           display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: 'var(--board-bg)',
+          background: 'var(--board-gradient)',
           color: 'var(--ui-text)',
-          fontSize: '1.2rem',
-          fontWeight: 600,
+          gap: '16px',
         }}
       >
-        <span>Loading Sticky Notes...</span>
+        <div className="loading-spinner" />
+        <span style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--ui-text-muted)' }}>
+          Loading Sticky Notes...
+        </span>
       </div>
     );
   }

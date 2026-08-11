@@ -48,200 +48,130 @@ export default function LoginPage() {
   };
 
   return (
-    <div
-      style={{
-        width: '100vw',
-        height: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'var(--board-bg)',
-        backgroundImage: 'var(--board-texture)',
-        backgroundSize: '40px 40px',
-        padding: '16px',
-      }}
-    >
-      <div
-        className="sticky-note-card note-color-yellow"
-        style={{
-          width: '360px',
-          padding: '32px 28px',
-          transform: 'rotate(-1deg)',
-          borderRadius: '4px 4px 18px 4px',
-          boxShadow: '0 16px 36px rgba(0,0,0,0.25)',
-          position: 'relative',
-        }}
-      >
-        <div className="sticky-note-tape" />
-        <div className="pushpin" />
+    <div className="login-board-wrapper">
+      {/* Ambient Decorative Floating Notes in Background */}
+      <div className="floating-note bg-note-yellow" style={{ top: '12%', left: '10%', transform: 'rotate(-12deg)' }}>
+        <span>💡 Ideas</span>
+      </div>
+      <div className="floating-note bg-note-pink" style={{ top: '18%', right: '12%', transform: 'rotate(8deg)' }}>
+        <span>📌 Meeting @ 3PM</span>
+      </div>
+      <div className="floating-note bg-note-blue" style={{ bottom: '15%', left: '14%', transform: 'rotate(6deg)' }}>
+        <span>🚀 Launch App</span>
+      </div>
+      <div className="floating-note bg-note-green" style={{ bottom: '20%', right: '15%', transform: 'rotate(-9deg)' }}>
+        <span>✨ PWA Standalone</span>
+      </div>
 
-        <div style={{ textAlign: 'center', marginTop: '8px', marginBottom: '20px' }}>
-          <div style={{ fontSize: '2rem', marginBottom: '4px' }}>📝</div>
-          <h1 style={{ fontFamily: 'var(--font-note)', fontSize: '2.2rem', fontWeight: 700, color: '#111' }}>
-            Sticky Notes PWA
-          </h1>
-          <p style={{ fontSize: '0.85rem', color: '#555' }}>Enter your username and PIN to log in</p>
+      {/* Main Interactive Login Sticky Note Card */}
+      <div className="login-sticky-card">
+        {/* Realistic Semi-transparent Tape */}
+        <div className="sticky-tape" />
+
+        {/* 3D Glossy Red Pushpin */}
+        <div className="sticky-pushpin" />
+
+        {/* Card Header */}
+        <div className="login-card-header">
+          <div className="badge-pill">
+            <Sparkles size={13} style={{ color: '#e65100' }} />
+            <span>Sticky Notes Workspace</span>
+          </div>
+          <h1 className="login-note-title">Welcome Back! 👋</h1>
+          <p className="login-note-subtitle">Enter your username and PIN to unlock</p>
         </div>
 
+        {/* Error Notification */}
         {error && (
-          <div
-            style={{
-              padding: '8px 12px',
-              borderRadius: '8px',
-              background: 'rgba(244, 67, 54, 0.15)',
-              color: '#c62828',
-              fontSize: '0.85rem',
-              marginBottom: '16px',
-              textAlign: 'center',
-            }}
-          >
-            {error}
+          <div className="login-error-banner">
+            <span>{error}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
-          {/* Username Field */}
-          <div style={{ marginBottom: '16px' }}>
-            <label style={{ fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', color: '#444' }}>
-              Username
-            </label>
-            <div style={{ position: 'relative', marginTop: '4px' }}>
-              <UserIcon size={16} style={{ position: 'absolute', left: '12px', top: '10px', color: '#666' }} />
+        <form onSubmit={handleSubmit} style={{ width: '100%' }}>
+          {/* Username Input */}
+          <div className="field-group">
+            <label className="field-label">Username</label>
+            <div className="input-icon-wrapper">
+              <UserIcon size={16} className="input-icon" />
               <input
                 type="text"
-                placeholder="e.g. ignek"
+                className="login-input-field"
+                placeholder="Enter username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px 8px 36px',
-                  borderRadius: '8px',
-                  border: '1px solid rgba(0,0,0,0.15)',
-                  background: 'rgba(255,255,255,0.7)',
-                  fontSize: '0.95rem',
-                  outline: 'none',
-                }}
+                autoFocus
               />
             </div>
           </div>
 
-          {/* PIN Field Display */}
-          <div style={{ marginBottom: '16px' }}>
-            <label style={{ fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', color: '#444' }}>
-              Security PIN
-            </label>
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'center',
-                gap: '12px',
-                marginTop: '6px',
-                marginBottom: '12px',
-              }}
-            >
-              {[0, 1, 2, 3].map((idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    width: '36px',
-                    height: '42px',
-                    borderRadius: '8px',
-                    border: '2px solid rgba(0,0,0,0.2)',
-                    background: pin.length > idx ? '#111' : 'rgba(255,255,255,0.8)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#fff',
-                    fontWeight: 'bold',
-                    fontSize: '1.2rem',
-                  }}
+          {/* Security PIN Display */}
+          <div className="field-group">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <label className="field-label">Security PIN</label>
+              {pin && (
+                <button
+                  type="button"
+                  onClick={() => setPin('')}
+                  style={{ background: 'none', border: 'none', color: '#786c5e', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 600 }}
                 >
+                  Clear PIN
+                </button>
+              )}
+            </div>
+
+            {/* PIN Dots Indicator */}
+            <div className="pin-display-row">
+              {[0, 1, 2, 3].map((idx) => (
+                <div key={idx} className={`pin-dot-box ${pin.length > idx ? 'active-dot' : ''}`}>
                   {pin.length > idx ? '•' : ''}
                 </div>
               ))}
             </div>
 
-            {/* Numeric Keypad */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
+            {/* Physical Keypad */}
+            <div className="keypad-grid">
               {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
                 <button
                   key={digit}
                   type="button"
+                  className="keypad-num-btn"
                   onClick={() => handlePinClick(digit)}
-                  style={{
-                    padding: '8px',
-                    borderRadius: '8px',
-                    border: '1px solid rgba(0,0,0,0.1)',
-                    background: 'rgba(255,255,255,0.8)',
-                    fontWeight: 600,
-                    fontSize: '1.1rem',
-                    cursor: 'pointer',
-                  }}
                 >
                   {digit}
                 </button>
               ))}
-              <button
-                type="button"
-                onClick={handlePinBackspace}
-                style={{
-                  padding: '8px',
-                  borderRadius: '8px',
-                  border: '1px solid rgba(0,0,0,0.1)',
-                  background: 'rgba(255,255,255,0.5)',
-                  fontSize: '0.9rem',
-                  cursor: 'pointer',
-                }}
-              >
+              <button type="button" className="keypad-action-btn" onClick={handlePinBackspace} title="Backspace">
                 ⌫
               </button>
-              <button
-                type="button"
-                onClick={() => handlePinClick('0')}
-                style={{
-                  padding: '8px',
-                  borderRadius: '8px',
-                  border: '1px solid rgba(0,0,0,0.1)',
-                  background: 'rgba(255,255,255,0.8)',
-                  fontWeight: 600,
-                  fontSize: '1.1rem',
-                  cursor: 'pointer',
-                }}
-              >
+              <button type="button" className="keypad-num-btn" onClick={() => handlePinClick('0')}>
                 0
               </button>
-              <button
-                type="button"
-                onClick={() => setPin('')}
-                style={{
-                  padding: '8px',
-                  borderRadius: '8px',
-                  border: '1px solid rgba(0,0,0,0.1)',
-                  background: 'rgba(255,255,255,0.5)',
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                Clear
+              <button type="button" className="keypad-action-btn" onClick={() => setPin('')} title="Reset">
+                C
               </button>
             </div>
           </div>
 
-          <button
-            type="submit"
-            className="btn-primary"
-            disabled={loading}
-            style={{ width: '100%', justifyContent: 'center', padding: '12px', marginTop: '8px' }}
-          >
-            {loading ? 'Logging in...' : 'Unlock Notes Board'} <ArrowRight size={16} />
+          {/* Unlock Submit Button */}
+          <button type="submit" className="login-submit-btn" disabled={loading}>
+            {loading ? (
+              <span className="btn-loading-flex">
+                <span className="mini-spin" /> Unlocking Board...
+              </span>
+            ) : (
+              <span className="btn-loading-flex">
+                Unlock Workspace <ArrowRight size={18} />
+              </span>
+            )}
           </button>
         </form>
 
-        <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '0.85rem' }}>
-          <span>Don&apos;t have a note board yet? </span>
-          <Link href="/register" style={{ fontWeight: 700, color: 'var(--ui-accent)' }}>
-            Register with PIN
+        {/* Register Prompt */}
+        <div className="login-footer-link">
+          <span>Need a new sticky board? </span>
+          <Link href="/register" className="highlight-link">
+            Create Account & PIN →
           </Link>
         </div>
       </div>
