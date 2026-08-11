@@ -110,6 +110,7 @@ export default function StickyNotesAppPage() {
       {/* Top Header Toolbar */}
       <Toolbar
         user={user}
+        notes={notes}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         selectedColor={selectedColor}
@@ -125,6 +126,7 @@ export default function StickyNotesAppPage() {
         theme={theme}
         onToggleTheme={toggleTheme}
         onCreateNote={() => createNote()}
+        onSelectNote={(note) => setEditingNote(note)}
         onOpenUserManagement={() => setShowUserManagement(true)}
         onLogout={logout}
       />
