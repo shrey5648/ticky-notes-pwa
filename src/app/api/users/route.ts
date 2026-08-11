@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSessionUserFromHeader, hashPin } from '@/lib/auth';
 import { isSupabaseConfigured, supabaseAdmin } from '@/lib/supabase';
-import { mockUsers, mockUserHashes, mockNotes, mockShares } from '@/lib/mockStore';
+import { mockUsers, mockUserHashes, mockNotes, mockShares, saveStore } from '@/lib/mockStore';
 
 // GET list all users
 export async function GET(req: Request) {
@@ -130,6 +130,7 @@ export async function POST(req: Request) {
 
       mockUsers.push(newUser);
       mockUserHashes[newUser.id] = pinHash;
+      saveStore();
 
       return NextResponse.json({ user: newUser });
     }

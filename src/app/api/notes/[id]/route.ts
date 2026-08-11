@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSessionUserFromHeader } from '@/lib/auth';
 import { isSupabaseConfigured, supabaseAdmin } from '@/lib/supabase';
-import { mockNotes, mockShares } from '@/lib/mockStore';
+import { mockNotes, mockShares, saveStore } from '@/lib/mockStore';
 
 export async function PUT(
   req: Request,
@@ -92,6 +92,7 @@ export async function PUT(
         updated_at: new Date().toISOString(),
       };
       mockNotes[noteIndex] = updated;
+      saveStore();
 
       return NextResponse.json({ note: updated });
     }
@@ -115,6 +116,9 @@ export async function DELETE(
     const noteId = resolvedParams.id;
     const isAdmin = user.role === 'admin';
 
+    const { searchParams } = new URL(req.url);
+    const purge = searchParams.get('purge') === 'true';
+
     if (isSupabaseConfigured()) {
       // Check ownership
       const { data: note } = await supabaseAdmin
@@ -131,9 +135,12 @@ export async function DELETE(
         return NextResponse.json({ error: 'Forbidden: Only owner or Super Admin can delete' }, { status: 403 });
       }
 
-      const { error } = await supabaseAdmin.from('notes').delete().eq('id', noteId);
-      if (error) {
-        return NextResponse.json({ error: 'Failed to delete note' }, { status: 500 });
+      if (purge) {
+        const { error } = await supabaseAdmin.from('notes').delete().eq('id', noteId);
+        if (error) return NextResponse.json({ error: 'Failed to delete note' }, { status: 500 });
+      } else {
+        const { error } = await supabaseAdmin.from('notes').update({ is_deleted: true }).eq('id', noteId);
+        if (error) return NextResponse.json({ error: 'Failed to soft delete note' }, { status: 500 });
       }
 
       return NextResponse.json({ success: true, id: noteId });
@@ -148,7 +155,13 @@ export async function DELETE(
         return NextResponse.json({ error: 'Forbidden: Only owner or Super Admin can delete' }, { status: 403 });
       }
 
-      mockNotes.splice(noteIndex, 1);
+      if (purge) {
+        mockNotes.splice(noteIndex, 1);
+      } else {
+        mockNotes[noteIndex].is_deleted = true;
+        mockNotes[noteIndex].updated_at = new Date().toISOString();
+      }
+      saveStore();
       return NextResponse.json({ success: true, id: noteId });
     }
   } catch (err) {

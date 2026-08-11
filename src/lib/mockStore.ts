@@ -1,91 +1,96 @@
-import { User, Note, NoteShare } from './types';
+import fs from 'fs';
+import path from 'path';
+import { User, Note, NoteShare, Board } from './types';
 
-// Initial users with role definition (ignek is Super Admin)
-export const mockUsers: User[] = [
+const DATA_DIR = path.join(process.cwd(), 'data');
+const DATA_FILE = path.join(DATA_DIR, 'store.json');
+
+const INITIAL_USERS: User[] = [
   {
     id: 'user-demo-1',
-    username: 'ignek',
-    display_name: 'Ignek User',
+    username: 'Shreyas',
+    display_name: 'Shreyas Admin',
     role: 'admin',
     created_at: new Date().toISOString(),
   },
-  {
-    id: 'user-demo-2',
-    username: 'alex',
-    display_name: 'Alex Rivera',
-    role: 'user',
-    created_at: new Date().toISOString(),
-  }
 ];
 
-// Bcrypt Hash for user initial authentication
-export const mockUserHashes: Record<string, string> = {
-  'user-demo-1': '$2b$10$B/M2SKxNTWL5afegjl/nnuDLkejEsAJvzzll1gJVRU7pluYNHT7Oq',
-  'user-demo-2': '$2b$10$B/M2SKxNTWL5afegjl/nnuDLkejEsAJvzzll1gJVRU7pluYNHT7Oq',
+const INITIAL_HASHES: Record<string, string> = {
+  'user-demo-1': '$2b$10$B/M2SKxNTWL5afegjl/nnuDLkejEsAJvzzll1gJVRU7pluYNHT7Oq', // PIN: 1234
 };
 
-// Initial notes
-export const mockNotes: Note[] = [
+const INITIAL_BOARDS: Board[] = [
   {
-    id: 'note-1',
+    id: 'board-default',
+    name: 'Main Board',
     owner_id: 'user-demo-1',
-    title: '💡 Welcome Super Admin!',
-    content: '<p>As a <strong>Super Admin</strong>, you can see and manage all user sticky notes across the workspace, manage user accounts, change user roles, and reset PINs!</p>',
-    color: '#FFEB3B', // Yellow
-    position_x: 60,
-    position_y: 60,
-    is_pinned: true,
-    is_archived: false,
-    z_index: 10,
-    created_at: new Date(Date.now() - 3600000 * 5).toISOString(),
-    updated_at: new Date(Date.now() - 3600000 * 5).toISOString(),
-    permission: 'owner'
+    color: '#e65100',
+    created_at: new Date().toISOString(),
   },
-  {
-    id: 'note-2',
-    owner_id: 'user-demo-1',
-    title: '📌 Project Roadmap',
-    content: '<ul><li>[x] Design cork board canvas</li><li>[x] Add drag & drop support</li><li>[x] Implement PIN authentication</li><li>[x] Super Admin Workspace Controls</li></ul>',
-    color: '#81D4FA', // Blue
-    position_x: 420,
-    position_y: 60,
-    is_pinned: false,
-    is_archived: false,
-    z_index: 5,
-    created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
-    updated_at: new Date(Date.now() - 3600000 * 2).toISOString(),
-    permission: 'owner'
-  },
-  {
-    id: 'note-3',
-    owner_id: 'user-demo-1',
-    title: '🛒 Shopping List',
-    content: '<p>Remember to buy:</p><ol><li>Coffee beans ☕</li><li>Fresh sticky notes 📝</li><li>Snacks 🍿</li></ol>',
-    color: '#F48FB1', // Pink
-    position_x: 180,
-    position_y: 380,
-    is_pinned: false,
-    is_archived: false,
-    z_index: 2,
-    created_at: new Date(Date.now() - 3600000 * 12).toISOString(),
-    updated_at: new Date(Date.now() - 3600000 * 12).toISOString(),
-    permission: 'owner'
-  },
-  {
-    id: 'note-4',
-    owner_id: 'user-demo-2',
-    title: '🤝 Alex\'s Project Note',
-    content: '<p>This is a sticky note created by Alex. Super Admins can view, move, edit, or manage this note directly from the admin canvas!</p>',
-    color: '#A5D6A7', // Green
-    position_x: 540,
-    position_y: 380,
-    is_pinned: true,
-    is_archived: false,
-    z_index: 8,
-    created_at: new Date(Date.now() - 3600000 * 24).toISOString(),
-    updated_at: new Date(Date.now() - 3600000 * 24).toISOString(),
-    permission: 'owner'
-  }
 ];
 
-export const mockShares: NoteShare[] = [];
+const INITIAL_NOTES: Note[] = [];
+
+function loadStore() {
+  try {
+    if (fs.existsSync(DATA_FILE)) {
+      const raw = fs.readFileSync(DATA_FILE, 'utf-8');
+      const data = JSON.parse(raw);
+      return {
+        users: Array.isArray(data.users) && data.users.length > 0 ? data.users : INITIAL_USERS,
+        userHashes: data.userHashes && Object.keys(data.userHashes).length > 0 ? data.userHashes : INITIAL_HASHES,
+        boards: Array.isArray(data.boards) && data.boards.length > 0 ? data.boards : INITIAL_BOARDS,
+        notes: Array.isArray(data.notes) ? data.notes : INITIAL_NOTES,
+        shares: Array.isArray(data.shares) ? data.shares : [],
+      };
+    }
+  } catch (err) {
+    console.error('Error reading store file, falling back to initial store:', err);
+  }
+
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+
+  const initial = {
+    users: INITIAL_USERS,
+    userHashes: INITIAL_HASHES,
+    boards: INITIAL_BOARDS,
+    notes: INITIAL_NOTES,
+    shares: [],
+  };
+
+  try {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(initial, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Error creating initial store file:', err);
+  }
+
+  return initial;
+}
+
+const loaded = loadStore();
+
+export const mockUsers: User[] = loaded.users;
+export const mockUserHashes: Record<string, string> = loaded.userHashes;
+export const mockBoards: Board[] = loaded.boards;
+export const mockNotes: Note[] = loaded.notes;
+export const mockShares: NoteShare[] = loaded.shares;
+
+export function saveStore() {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    const data = {
+      users: mockUsers,
+      userHashes: mockUserHashes,
+      boards: mockBoards,
+      notes: mockNotes,
+      shares: mockShares,
+    };
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Error writing store to disk:', err);
+  }
+}

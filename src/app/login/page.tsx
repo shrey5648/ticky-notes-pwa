@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Lock, User as UserIcon, ArrowRight, Sparkles } from 'lucide-react';
+import { User as UserIcon, ArrowRight, Sparkles, Keyboard } from 'lucide-react';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
@@ -14,24 +14,59 @@ export default function LoginPage() {
   const { login } = useAuth();
   const router = useRouter();
 
+  const usernameInputRef = useRef<HTMLInputElement>(null);
+  const pinInputRef = useRef<HTMLInputElement>(null);
+
   const handlePinClick = (digit: string) => {
     if (pin.length < 6) {
       setPin((prev) => prev + digit);
     }
+    pinInputRef.current?.focus();
   };
 
   const handlePinBackspace = () => {
     setPin((prev) => prev.slice(0, -1));
+    pinInputRef.current?.focus();
   };
+
+  // Keyboard Event Handler for PIN entry
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const isUsernameFocused = activeEl === usernameInputRef.current;
+
+      // Capture number keys 0-9 when username input is NOT active
+      if (/^[0-9]$/.test(e.key)) {
+        if (!isUsernameFocused && activeEl !== pinInputRef.current) {
+          if (pin.length < 6) {
+            setPin((prev) => prev + e.key);
+          }
+        }
+      } else if (e.key === 'Backspace') {
+        if (!isUsernameFocused && activeEl !== pinInputRef.current) {
+          setPin((prev) => prev.slice(0, -1));
+        }
+      } else if (e.key === 'Escape' || (e.key.toLowerCase() === 'c' && !isUsernameFocused && activeEl !== pinInputRef.current)) {
+        if (!isUsernameFocused) {
+          setPin('');
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [pin.length]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username.trim()) {
       setError('Please enter your username');
+      usernameInputRef.current?.focus();
       return;
     }
     if (!pin || pin.length < 4) {
       setError('Please enter your 4-digit PIN');
+      pinInputRef.current?.focus();
       return;
     }
 
@@ -95,24 +130,34 @@ export default function LoginPage() {
             <div className="input-icon-wrapper">
               <UserIcon size={16} className="input-icon" />
               <input
+                ref={usernameInputRef}
                 type="text"
                 className="login-input-field"
                 placeholder="Enter username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && username.trim()) {
+                    e.preventDefault();
+                    pinInputRef.current?.focus();
+                  }
+                }}
                 autoFocus
               />
             </div>
           </div>
 
-          {/* Security PIN Display */}
+          {/* Security PIN Display & Keyboard Input */}
           <div className="field-group">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <label className="field-label">Security PIN</label>
               {pin && (
                 <button
                   type="button"
-                  onClick={() => setPin('')}
+                  onClick={() => {
+                    setPin('');
+                    pinInputRef.current?.focus();
+                  }}
                   style={{ background: 'none', border: 'none', color: '#786c5e', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 600 }}
                 >
                   Clear PIN
@@ -120,8 +165,36 @@ export default function LoginPage() {
               )}
             </div>
 
+            {/* Hidden Input for Native Keyboard & Tab Focus */}
+            <input
+              ref={pinInputRef}
+              type="password"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={6}
+              value={pin}
+              onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && pin.length >= 4) {
+                  handleSubmit(e);
+                }
+              }}
+              style={{
+                position: 'absolute',
+                opacity: 0,
+                pointerEvents: 'none',
+                width: '1px',
+                height: '1px',
+              }}
+            />
+
             {/* PIN Dots Indicator */}
-            <div className="pin-display-row">
+            <div
+              className="pin-display-row"
+              onClick={() => pinInputRef.current?.focus()}
+              style={{ cursor: 'text' }}
+              title="Click or focus to type PIN on keyboard"
+            >
               {[0, 1, 2, 3].map((idx) => (
                 <div key={idx} className={`pin-dot-box ${pin.length > idx ? 'active-dot' : ''}`}>
                   {pin.length > idx ? '•' : ''}
@@ -147,9 +220,34 @@ export default function LoginPage() {
               <button type="button" className="keypad-num-btn" onClick={() => handlePinClick('0')}>
                 0
               </button>
-              <button type="button" className="keypad-action-btn" onClick={() => setPin('')} title="Reset">
+              <button
+                type="button"
+                className="keypad-action-btn"
+                onClick={() => {
+                  setPin('');
+                  pinInputRef.current?.focus();
+                }}
+                title="Reset"
+              >
                 C
               </button>
+            </div>
+
+            {/* Keyboard Entry Hint */}
+            <div
+              style={{
+                fontSize: '0.73rem',
+                color: 'var(--ui-text-muted)',
+                textAlign: 'center',
+                marginTop: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '5px',
+              }}
+            >
+              <Keyboard size={13} style={{ color: 'var(--ui-accent)' }} />
+              <span>Keyboard active: Type digits <strong>0-9</strong> directly on your keyboard</span>
             </div>
           </div>
 
@@ -166,14 +264,6 @@ export default function LoginPage() {
             )}
           </button>
         </form>
-
-        {/* Register Prompt */}
-        <div className="login-footer-link">
-          <span>Need a new sticky board? </span>
-          <Link href="/register" className="highlight-link">
-            Create Account & PIN →
-          </Link>
-        </div>
       </div>
     </div>
   );

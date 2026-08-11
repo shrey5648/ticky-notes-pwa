@@ -6,9 +6,18 @@ export interface User {
   created_at?: string;
 }
 
+export interface Board {
+  id: string;
+  name: string;
+  owner_id: string;
+  color?: string;
+  created_at: string;
+}
+
 export interface Note {
   id: string;
   owner_id: string;
+  board_id?: string;
   title: string;
   content: string; // Tiptap HTML or JSON string
   color: string;
@@ -16,7 +25,12 @@ export interface Note {
   position_y: number;
   is_pinned: boolean;
   is_archived: boolean;
+  is_deleted?: boolean;
   z_index: number;
+  tags?: string[];
+  due_date?: string | null;
+  style_variant?: 'default' | 'kraft' | 'grid' | 'lined' | 'neon';
+  font_family?: 'sans' | 'handwriting' | 'mono';
   created_at: string;
   updated_at: string;
   // Metadata for shared or admin views

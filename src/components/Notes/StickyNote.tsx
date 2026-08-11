@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { Note } from '@/lib/types';
-import { Pin, Share2, Trash2, Edit3, Lock, Archive, User as UserIcon } from 'lucide-react';
+import { Pin, Share2, Trash2, Edit3, Lock, Archive, User as UserIcon, Calendar, Tag } from 'lucide-react';
 
 interface StickyNoteProps {
   note: Note;
@@ -43,9 +43,48 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
     '#FFFFFF': 'note-color-white',
   };
 
-  const noteColorClass = colorClassMap[note.color] || 'note-color-yellow';
+  const isCustomColor = !colorClassMap[note.color];
+  const noteColorClass = colorClassMap[note.color] || '';
+  const styleVariantClass = note.style_variant ? `note-style-${note.style_variant}` : '';
+  const fontFamilyClass = note.font_family ? `font-${note.font_family}` : 'font-sans';
 
-  // Slight random rotation for realistic paper look
+  // Calculate checklist completion progress
+  const getChecklistStats = (html: string) => {
+    if (!html || (!html.includes('type="checkbox"') && !html.includes('data-type="taskItem"'))) {
+      return null;
+    }
+    const total = (html.match(/type="checkbox"/g) || []).length;
+    const checked = (html.match(/checked/g) || []).length;
+    if (total === 0) return null;
+    const percent = Math.round((checked / total) * 100);
+    return { total, checked, percent };
+  };
+
+  const checklistStats = getChecklistStats(note.content);
+
+  // Calculate due date status badge
+  const getDueDateBadge = (dueDateStr?: string | null) => {
+    if (!dueDateStr) return null;
+    const due = new Date(dueDateStr);
+    const now = new Date();
+    due.setHours(0, 0, 0, 0);
+    now.setHours(0, 0, 0, 0);
+
+    const diffDays = Math.ceil((due.getTime() - now.getTime()) / (1000 * 3600 * 24));
+
+    if (diffDays < 0) {
+      return { type: 'overdue', label: `Overdue (${Math.abs(diffDays)}d)` };
+    } else if (diffDays === 0) {
+      return { type: 'today', label: 'Due Today' };
+    } else if (diffDays <= 3) {
+      return { type: 'soon', label: `Due in ${diffDays}d` };
+    }
+    return { type: 'normal', label: due.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) };
+  };
+
+  const dueBadge = getDueDateBadge(note.due_date);
+
+  // Rotation for realistic look
   const getRotation = (id: string) => {
     let hash = 0;
     for (let i = 0; i < id.length; i++) {
@@ -60,6 +99,7 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
     top: `${note.position_y}px`,
     left: `${note.position_x}px`,
     zIndex: isDragging ? 9999 : note.z_index,
+    backgroundColor: isCustomColor ? note.color : undefined,
     transform: transform
       ? `translate3d(${transform.x}px, ${transform.y}px, 0) scale(1.04)`
       : `rotate(${rotation}deg)`,
@@ -72,7 +112,7 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
     <div
       ref={setNodeRef}
       style={style}
-      className={`sticky-note-card ${noteColorClass}`}
+      className={`sticky-note-card ${noteColorClass} ${styleVariantClass} ${fontFamilyClass}`}
       onClick={() => onBringToFront(note.id)}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -118,6 +158,38 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
         </div>
       </div>
 
+      {/* Due Date & Tag Badges Bar */}
+      {(dueBadge || (note.tags && note.tags.length > 0)) && (
+        <div
+          style={{
+            display: 'flex',
+            gap: '4px',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            marginBottom: '6px',
+          }}
+        >
+          {dueBadge && (
+            <span className={`due-badge ${dueBadge.type}`} title={`Due Date: ${note.due_date}`}>
+              <Calendar size={10} /> {dueBadge.label}
+            </span>
+          )}
+          {note.tags &&
+            note.tags.map((tag) => (
+              <span key={tag} className="tag-pill" title={`Tag: #${tag}`}>
+                #{tag}
+              </span>
+            ))}
+        </div>
+      )}
+
+      {/* Checklist Progress Bar */}
+      {checklistStats && (
+        <div className="checklist-progress-bar" title={`Checklist: ${checklistStats.checked}/${checklistStats.total} completed (${checklistStats.percent}%)`}>
+          <div className="checklist-progress-fill" style={{ width: `${checklistStats.percent}%` }} />
+        </div>
+      )}
+
       {/* Note Content */}
       <div
         className="note-body"
@@ -142,7 +214,7 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
         }}
         onClick={(e) => e.stopPropagation()}
       >
-      {/* Shared badge, Admin owner badge, or date */}
+        {/* Shared badge, Admin owner badge, or date */}
         {note.is_admin_view && note.owner_user ? (
           <span
             style={{
@@ -193,7 +265,7 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
             transition: 'all 0.2s ease',
           }}
         >
-          {note.permission === 'owner' && (
+          {(note.permission === 'owner' || note.is_admin_view) && (
             <button
               className="btn-icon"
               style={{ width: '24px', height: '24px' }}
@@ -211,11 +283,11 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
           >
             <Archive size={12} />
           </button>
-          {note.permission === 'owner' && (
+          {(note.permission === 'owner' || note.is_admin_view) && (
             <button
               className="btn-icon"
               style={{ width: '24px', height: '24px', color: 'var(--ui-danger)' }}
-              title="Delete"
+              title="Delete note (Move to Trash Bin)"
               onClick={() => onDelete(note.id)}
             >
               <Trash2 size={12} />

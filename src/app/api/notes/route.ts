@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSessionUserFromHeader } from '@/lib/auth';
 import { isSupabaseConfigured, supabaseAdmin } from '@/lib/supabase';
-import { mockNotes, mockShares, mockUsers } from '@/lib/mockStore';
+import { mockNotes, mockShares, mockUsers, saveStore } from '@/lib/mockStore';
 import { Note } from '@/lib/types';
 
 export async function GET(req: Request) {
@@ -130,10 +130,11 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { title, content, color, position_x, position_y, is_pinned } = body;
+    const { title, content, color, position_x, position_y, is_pinned, board_id, tags, due_date, style_variant, font_family } = body;
 
     const newNoteData = {
       owner_id: user.id,
+      board_id: board_id || 'board-default',
       title: title || '📝 New Note',
       content: content || '<p></p>',
       color: color || '#FFEB3B',
@@ -141,6 +142,11 @@ export async function POST(req: Request) {
       position_y: position_y ?? 100,
       is_pinned: is_pinned ?? false,
       is_archived: false,
+      is_deleted: false,
+      tags: Array.isArray(tags) ? tags : [],
+      due_date: due_date || null,
+      style_variant: style_variant || 'default',
+      font_family: font_family || 'sans',
       z_index: Date.now() % 10000,
     };
 
@@ -167,6 +173,7 @@ export async function POST(req: Request) {
         permission: 'owner',
       };
       mockNotes.push(createdNote);
+      saveStore();
       return NextResponse.json({ note: createdNote });
     }
   } catch (err) {

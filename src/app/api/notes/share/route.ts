@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSessionUserFromHeader } from '@/lib/auth';
 import { isSupabaseConfigured, supabaseAdmin } from '@/lib/supabase';
-import { mockNotes, mockShares, mockUsers } from '@/lib/mockStore';
+import { mockNotes, mockShares, mockUsers, saveStore } from '@/lib/mockStore';
 
 // GET list shares for a note
 export async function GET(req: Request) {
@@ -173,6 +173,7 @@ export async function POST(req: Request) {
       } else {
         mockShares.push(shareData);
       }
+      saveStore();
 
       return NextResponse.json({ share: shareData });
     }
@@ -208,6 +209,7 @@ export async function DELETE(req: Request) {
       const idx = mockShares.findIndex((s) => s.id === shareId);
       if (idx > -1) {
         mockShares.splice(idx, 1);
+        saveStore();
       }
       return NextResponse.json({ success: true });
     }

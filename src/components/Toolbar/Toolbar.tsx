@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Note } from '@/lib/types';
+import { User, Note, Board } from '@/lib/types';
 import {
   Plus,
   Search,
@@ -12,6 +12,7 @@ import {
   LogOut,
   Archive,
   Users,
+  UserCheck,
   Filter,
   X,
   Laptop,
@@ -23,21 +24,47 @@ import {
   StickyNote,
   Clock,
   Sparkles,
+  Check,
+  Tag,
+  LayoutGrid,
+  Trash2,
+  FileText,
+  FileCode,
+  Image as ImageIcon,
+  Printer,
+  FolderPlus,
 } from 'lucide-react';
 
 interface ToolbarProps {
   user: User | null;
   notes?: Note[];
+  workspaceUsers?: User[];
+  boards?: Board[];
+  currentBoardId?: string;
+  onSelectBoard?: (boardId: string) => void;
+  onCreateBoard?: (name: string) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
   selectedColor: string | null;
   onColorSelect: (color: string | null) => void;
+  selectedUserFilter: string | null;
+  onUserFilterSelect: (userId: string | null) => void;
+  selectedTagFilter?: string | null;
+  onTagFilterSelect?: (tag: string | null) => void;
+  availableTags?: string[];
   showPinnedOnly: boolean;
   onTogglePinnedOnly: () => void;
   showSharedOnly: boolean;
   onToggleSharedOnly: () => void;
   showArchived: boolean;
   onToggleArchived: () => void;
+  deletedCount?: number;
+  onOpenTrashBin?: () => void;
+  onAutoArrange?: () => void;
+  onExportJSON?: () => void;
+  onExportMarkdown?: () => void;
+  onExportPNG?: () => void;
+  onExportPDF?: () => void;
   isOnline: boolean;
   syncing: boolean;
   theme: 'light' | 'dark';
@@ -67,16 +94,33 @@ const stripHtml = (html: string) => {
 export const Toolbar: React.FC<ToolbarProps> = ({
   user,
   notes = [],
+  workspaceUsers = [],
+  boards = [],
+  currentBoardId = 'board-default',
+  onSelectBoard,
+  onCreateBoard,
   searchQuery,
   onSearchChange,
   selectedColor,
   onColorSelect,
+  selectedUserFilter,
+  onUserFilterSelect,
+  selectedTagFilter = null,
+  onTagFilterSelect,
+  availableTags = [],
   showPinnedOnly,
   onTogglePinnedOnly,
   showSharedOnly,
   onToggleSharedOnly,
   showArchived,
   onToggleArchived,
+  deletedCount = 0,
+  onOpenTrashBin,
+  onAutoArrange,
+  onExportJSON,
+  onExportMarkdown,
+  onExportPNG,
+  onExportPDF,
   isOnline,
   syncing,
   theme,
@@ -86,19 +130,28 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onOpenUserManagement,
   onLogout,
 }) => {
-  const [isCollapsed, setIsCollapsed] = useState(true); // Collapsed by default as requested!
+  const [isCollapsed, setIsCollapsed] = useState(true);
   const [showNotesPicker, setShowNotesPicker] = useState(false);
+  const [showBoardDropdown, setShowBoardDropdown] = useState(false);
+  const [showColorFilter, setShowColorFilter] = useState(false);
+  const [showUserFilter, setShowUserFilter] = useState(false);
+  const [showTagFilter, setShowTagFilter] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showNewBoardModal, setShowNewBoardModal] = useState(false);
+  const [newBoardName, setNewBoardName] = useState('');
   const [quickSearch, setQuickSearch] = useState('');
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const [showColorFilter, setShowColorFilter] = useState(false);
   const [showInstallModal, setShowInstallModal] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
 
   const pickerRef = useRef<HTMLDivElement>(null);
+  const boardDropdownRef = useRef<HTMLDivElement>(null);
+  const userFilterRef = useRef<HTMLDivElement>(null);
+  const tagFilterRef = useRef<HTMLDivElement>(null);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Check standalone mode
     if (typeof window !== 'undefined') {
       const isStandaloneMode = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
       setIsStandalone(!!isStandaloneMode);
@@ -111,7 +164,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
-    // Global keyboard shortcuts (Alt+N, Alt+E, Alt+I)
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.altKey && e.key.toLowerCase() === 'n') {
         e.preventDefault();
@@ -133,18 +185,27 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     };
   }, [onCreateNote]);
 
-  // Handle outside click to close Quick Notes Picker
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
       if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
         setShowNotesPicker(false);
       }
+      if (boardDropdownRef.current && !boardDropdownRef.current.contains(e.target as Node)) {
+        setShowBoardDropdown(false);
+      }
+      if (userFilterRef.current && !userFilterRef.current.contains(e.target as Node)) {
+        setShowUserFilter(false);
+      }
+      if (tagFilterRef.current && !tagFilterRef.current.contains(e.target as Node)) {
+        setShowTagFilter(false);
+      }
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setShowExportMenu(false);
+      }
     };
-    if (showNotesPicker) {
-      document.addEventListener('mousedown', handleOutsideClick);
-      return () => document.removeEventListener('mousedown', handleOutsideClick);
-    }
-  }, [showNotesPicker]);
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
 
   const handleInstallPWA = async () => {
     if (deferredPrompt) {
@@ -160,9 +221,17 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     }
   };
 
-  // Filter notes for Quick Notes Picker
+  const handleCreateBoardSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newBoardName.trim() && onCreateBoard) {
+      onCreateBoard(newBoardName.trim());
+      setNewBoardName('');
+      setShowNewBoardModal(false);
+    }
+  };
+
   const quickFilteredNotes = notes
-    .filter((n) => !n.is_archived)
+    .filter((n) => !n.is_archived && !n.is_deleted)
     .filter((n) => {
       if (!quickSearch.trim()) return true;
       const q = quickSearch.toLowerCase();
@@ -172,11 +241,12 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     })
     .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
 
-  // Rendering Collapsed Dynamic Island view
+  const currentBoardObj = boards.find((b) => b.id === currentBoardId);
+
+  // Collapsed Dynamic Island View
   if (isCollapsed) {
     return (
       <div className="dynamic-island collapsed" ref={pickerRef}>
-        {/* Dynamic Island Capsule Status Badge */}
         <div
           className="dynamic-island-badge"
           onClick={() => setIsCollapsed(false)}
@@ -189,7 +259,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
         <div style={{ width: '1px', height: '18px', background: 'rgba(255, 255, 255, 0.2)' }} />
 
-        {/* Action Button 1: Create Note */}
         <button
           className="dynamic-island-btn"
           onClick={onCreateNote}
@@ -199,7 +268,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           <Plus size={14} /> New Note
         </button>
 
-        {/* Action Button 2: Quick Edit Previous Note */}
         <button
           className="dynamic-island-btn-secondary"
           onClick={() => setShowNotesPicker(!showNotesPicker)}
@@ -209,7 +277,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           <Edit3 size={13} /> Edit Note <ChevronDown size={13} style={{ transform: showNotesPicker ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
         </button>
 
-        {/* Expand Toolbar Toggle */}
         <button
           className="btn-icon"
           onClick={() => setIsCollapsed(false)}
@@ -219,7 +286,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           <Maximize2 size={13} />
         </button>
 
-        {/* Quick Access Notes Dropdown Picker */}
         {showNotesPicker && (
           <div className="dynamic-island-dropdown" onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
@@ -235,7 +301,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               </button>
             </div>
 
-            {/* Quick Search Input */}
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
               <Search size={13} style={{ position: 'absolute', left: '10px', color: 'var(--ui-text-muted)' }} />
               <input
@@ -265,7 +330,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               )}
             </div>
 
-            {/* Quick Create Note Button */}
             <button
               className="btn-primary"
               style={{ padding: '6px 12px', fontSize: '0.8rem', justifyContent: 'center', width: '100%' }}
@@ -277,7 +341,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               <Plus size={14} /> Create Blank Sticky Note
             </button>
 
-            {/* List of Previous Notes */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', overflowY: 'auto', maxHeight: '280px', paddingRight: '2px' }}>
               {quickFilteredNotes.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '18px 0', fontSize: '0.82rem', color: 'var(--ui-text-muted)' }}>
@@ -330,21 +393,92 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     );
   }
 
-  // Rendering Full Expanded Toolbar view
+  // Expanded Full Toolbar View — Single Clean Horizontal Row
   return (
-    <header className="top-toolbar dynamic-island expanded">
+    <header className="top-toolbar dynamic-island expanded" style={{ flexWrap: 'nowrap', gap: '8px', overflowX: 'auto', whiteSpace: 'nowrap' }}>
+      {/* Compact Board Switcher Dropdown */}
+      <div style={{ position: 'relative' }} ref={boardDropdownRef}>
+        <button
+          className="board-tab active"
+          onClick={() => setShowBoardDropdown(!showBoardDropdown)}
+          title="Switch Workspace Board"
+          style={{ padding: '5px 12px', fontSize: '0.82rem', height: '32px' }}
+        >
+          <StickyNote size={13} /> {currentBoardObj?.name || 'Main Board'}{' '}
+          <ChevronDown size={13} style={{ transform: showBoardDropdown ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+        </button>
+
+        {showBoardDropdown && (
+          <div
+            className="dynamic-island-dropdown"
+            style={{
+              top: 'calc(100% + 8px)',
+              left: 0,
+              width: '210px',
+              padding: '8px',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontSize: '0.75rem', fontWeight: 700, padding: '2px 4px 6px 4px', color: 'var(--ui-text-muted)', textTransform: 'uppercase' }}>
+              Workspace Boards
+            </div>
+            {boards.map((b) => (
+              <button
+                key={b.id}
+                className="dynamic-island-note-item"
+                style={{
+                  background: currentBoardId === b.id ? 'var(--ui-accent-light)' : 'transparent',
+                  borderColor: currentBoardId === b.id ? 'var(--ui-accent)' : 'var(--ui-border)',
+                }}
+                onClick={() => {
+                  if (onSelectBoard) onSelectBoard(b.id);
+                  setShowBoardDropdown(false);
+                }}
+              >
+                <StickyNote size={13} style={{ color: 'var(--ui-accent)' }} />
+                <span style={{ fontSize: '0.82rem', fontWeight: 600, flex: 1 }}>{b.name}</span>
+                {currentBoardId === b.id && <Check size={13} style={{ color: 'var(--ui-accent)' }} />}
+              </button>
+            ))}
+            <div style={{ height: '1px', background: 'var(--ui-border)', margin: '4px 0' }} />
+            <button
+              className="dynamic-island-note-item"
+              onClick={() => {
+                setShowBoardDropdown(false);
+                setShowNewBoardModal(true);
+              }}
+            >
+              <FolderPlus size={14} style={{ color: 'var(--ui-accent)' }} />
+              <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>Create New Board</span>
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Create Note Button */}
-      <button className="btn-primary" onClick={onCreateNote} title="Create new sticky note" id="btn-create-note">
-        <Plus size={17} /> New Note
+      <button className="btn-primary" onClick={onCreateNote} title="Create new sticky note" id="btn-create-note" style={{ height: '32px', padding: '0 14px', fontSize: '0.82rem' }}>
+        <Plus size={15} /> New Note
       </button>
+
+      {/* Auto-Arrange Grid Button */}
+      {onAutoArrange && (
+        <button
+          className="btn-secondary"
+          onClick={onAutoArrange}
+          title="Auto-align notes into neat grid columns"
+          style={{ height: '32px', padding: '0 10px', fontSize: '0.8rem' }}
+        >
+          <LayoutGrid size={14} /> Align Grid
+        </button>
+      )}
 
       {/* Search Input */}
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
         <Search
-          size={14}
+          size={13}
           style={{
             position: 'absolute',
-            left: '11px',
+            left: '10px',
             color: searchFocused ? 'var(--ui-accent)' : 'var(--ui-text-muted)',
             transition: 'color 0.15s',
             zIndex: 1,
@@ -359,30 +493,30 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           onBlur={() => setSearchFocused(false)}
           id="search-notes"
           style={{
-            padding: '7px 12px 7px 30px',
+            padding: '5px 10px 5px 28px',
             borderRadius: 'var(--radius-pill)',
             border: `1.5px solid ${searchFocused ? 'var(--ui-accent)' : 'var(--ui-border)'}`,
             background: 'var(--ui-bg)',
             color: 'var(--ui-text)',
-            fontSize: '0.84rem',
-            width: searchFocused ? '200px' : '150px',
+            fontSize: '0.82rem',
+            width: searchFocused ? '160px' : '120px',
+            height: '32px',
             outline: 'none',
             transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-            boxShadow: searchFocused ? '0 0 0 3px var(--ui-accent-light)' : 'none',
           }}
         />
         {searchQuery && (
           <button
             className="btn-icon"
-            style={{ width: '22px', height: '22px', position: 'absolute', right: '6px' }}
+            style={{ width: '20px', height: '20px', position: 'absolute', right: '6px' }}
             onClick={() => onSearchChange('')}
           >
-            <X size={12} />
+            <X size={11} />
           </button>
         )}
       </div>
 
-      {/* Filter Toggles */}
+      {/* Filter Toggles Group */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
         {/* Color filter */}
         <div style={{ position: 'relative' }}>
@@ -394,14 +528,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             style={{
               background: selectedColor ? selectedColor : 'transparent',
               border: selectedColor ? '2px solid var(--ui-accent)' : 'none',
-              width: '34px',
-              height: '34px',
+              width: '32px',
+              height: '32px',
             }}
           >
-            <Filter size={15} />
+            <Filter size={14} />
           </button>
 
-          {/* Color Popover */}
           {showColorFilter && (
             <div className="color-picker-popover" style={{ gridTemplateColumns: 'repeat(4, 1fr)', minWidth: '140px' }}>
               <button
@@ -435,20 +568,187 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           )}
         </div>
 
+        {/* Filter by User */}
+        <div style={{ position: 'relative' }} ref={userFilterRef}>
+          <button
+            className="btn-icon"
+            onClick={() => setShowUserFilter(!showUserFilter)}
+            title={selectedUserFilter ? 'Filter active by User' : 'Filter notes by user'}
+            style={{
+              background: selectedUserFilter ? 'var(--ui-accent-light)' : 'transparent',
+              color: selectedUserFilter ? 'var(--ui-accent)' : 'inherit',
+              border: selectedUserFilter ? '1.5px solid var(--ui-accent)' : 'none',
+              width: '32px',
+              height: '32px',
+            }}
+          >
+            <UserCheck size={14} />
+          </button>
+
+          {showUserFilter && (
+            <div
+              className="dynamic-island-dropdown"
+              style={{
+                top: 'calc(100% + 8px)',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                width: '240px',
+                padding: '10px',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ fontSize: '0.78rem', fontWeight: 700, padding: '2px 4px 6px 4px', color: 'var(--ui-text-muted)', textTransform: 'uppercase' }}>
+                Filter Notes by User
+              </div>
+              <button
+                className="dynamic-island-note-item"
+                style={{
+                  background: selectedUserFilter === null ? 'var(--ui-accent-light)' : 'transparent',
+                  borderColor: selectedUserFilter === null ? 'var(--ui-accent)' : 'var(--ui-border)',
+                }}
+                onClick={() => {
+                  onUserFilterSelect(null);
+                  setShowUserFilter(false);
+                }}
+              >
+                <Users size={14} style={{ color: 'var(--ui-accent)' }} />
+                <span style={{ fontSize: '0.82rem', fontWeight: 600, flex: 1 }}>All Users Notes</span>
+                {selectedUserFilter === null && <Check size={14} style={{ color: 'var(--ui-accent)' }} />}
+              </button>
+
+              {user && (
+                <button
+                  className="dynamic-island-note-item"
+                  style={{
+                    background: selectedUserFilter === user.id ? 'var(--ui-accent-light)' : 'transparent',
+                    borderColor: selectedUserFilter === user.id ? 'var(--ui-accent)' : 'var(--ui-border)',
+                  }}
+                  onClick={() => {
+                    onUserFilterSelect(user.id);
+                    setShowUserFilter(false);
+                  }}
+                >
+                  <div className="user-avatar" style={{ width: '20px', height: '20px', fontSize: '0.68rem' }}>
+                    {(user.display_name || user.username).charAt(0).toUpperCase()}
+                  </div>
+                  <span style={{ fontSize: '0.82rem', fontWeight: 600, flex: 1 }}>My Notes Only</span>
+                  {selectedUserFilter === user.id && <Check size={14} style={{ color: 'var(--ui-accent)' }} />}
+                </button>
+              )}
+
+              {workspaceUsers.length > 1 && (
+                <div style={{ height: '1px', background: 'var(--ui-border)', margin: '4px 0' }} />
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '180px', overflowY: 'auto' }}>
+                {workspaceUsers
+                  .filter((u) => u.id !== user?.id)
+                  .map((u) => (
+                    <button
+                      key={u.id}
+                      className="dynamic-island-note-item"
+                      style={{
+                        background: selectedUserFilter === u.id ? 'var(--ui-accent-light)' : 'transparent',
+                        borderColor: selectedUserFilter === u.id ? 'var(--ui-accent)' : 'var(--ui-border)',
+                      }}
+                      onClick={() => {
+                        onUserFilterSelect(u.id);
+                        setShowUserFilter(false);
+                      }}
+                    >
+                      <div className="user-avatar" style={{ width: '20px', height: '20px', fontSize: '0.68rem', background: '#9e9e9e' }}>
+                        {(u.display_name || u.username).charAt(0).toUpperCase()}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+                        <div style={{ fontSize: '0.8rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {u.display_name || u.username}
+                        </div>
+                      </div>
+                      {selectedUserFilter === u.id && <Check size={14} style={{ color: 'var(--ui-accent)' }} />}
+                    </button>
+                  ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Filter by Tag */}
+        {onTagFilterSelect && availableTags.length > 0 && (
+          <div style={{ position: 'relative' }} ref={tagFilterRef}>
+            <button
+              className="btn-icon"
+              onClick={() => setShowTagFilter(!showTagFilter)}
+              title="Filter by Tag"
+              style={{
+                background: selectedTagFilter ? 'var(--ui-accent-light)' : 'transparent',
+                color: selectedTagFilter ? 'var(--ui-accent)' : 'inherit',
+                border: selectedTagFilter ? '1.5px solid var(--ui-accent)' : 'none',
+                width: '32px',
+                height: '32px',
+              }}
+            >
+              <Tag size={14} />
+            </button>
+
+            {showTagFilter && (
+              <div
+                className="dynamic-island-dropdown"
+                style={{
+                  top: 'calc(100% + 8px)',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  width: '200px',
+                  padding: '8px',
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div style={{ fontSize: '0.78rem', fontWeight: 700, padding: '2px 4px 6px 4px', color: 'var(--ui-text-muted)', textTransform: 'uppercase' }}>
+                  Filter by Tag
+                </div>
+                <button
+                  className="dynamic-island-note-item"
+                  onClick={() => {
+                    onTagFilterSelect(null);
+                    setShowTagFilter(false);
+                  }}
+                >
+                  <Tag size={13} /> All Tags
+                </button>
+                {availableTags.map((t) => (
+                  <button
+                    key={t}
+                    className="dynamic-island-note-item"
+                    style={{
+                      background: selectedTagFilter === t ? 'var(--ui-accent-light)' : 'transparent',
+                      borderColor: selectedTagFilter === t ? 'var(--ui-accent)' : 'var(--ui-border)',
+                    }}
+                    onClick={() => {
+                      onTagFilterSelect(t);
+                      setShowTagFilter(false);
+                    }}
+                  >
+                    <span style={{ fontWeight: 600 }}>#{t}</span>
+                    {selectedTagFilter === t && <Check size={13} style={{ color: 'var(--ui-accent)', marginLeft: 'auto' }} />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Pinned filter */}
         <button
           className="btn-icon"
           onClick={onTogglePinnedOnly}
           title="Pinned notes"
-          id="btn-filter-pinned"
           style={{
             background: showPinnedOnly ? 'var(--ui-accent-light)' : 'transparent',
             color: showPinnedOnly ? 'var(--ui-accent)' : 'inherit',
-            width: '34px',
-            height: '34px',
+            width: '32px',
+            height: '32px',
           }}
         >
-          <Pin size={15} />
+          <Pin size={14} />
         </button>
 
         {/* Archive toggle */}
@@ -456,111 +756,140 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           className="btn-icon"
           onClick={onToggleArchived}
           title={showArchived ? 'View active notes' : 'View archived'}
-          id="btn-filter-archived"
           style={{
             background: showArchived ? 'var(--ui-accent-light)' : 'transparent',
             color: showArchived ? 'var(--ui-accent)' : 'inherit',
-            width: '34px',
-            height: '34px',
+            width: '32px',
+            height: '32px',
           }}
         >
-          <Archive size={15} />
+          <Archive size={14} />
         </button>
+
+        {/* Trash Bin Trigger */}
+        {onOpenTrashBin && (
+          <button
+            className="btn-icon"
+            onClick={onOpenTrashBin}
+            title="Open Trash Bin"
+            style={{ width: '32px', height: '32px', position: 'relative', color: deletedCount > 0 ? 'var(--ui-danger)' : 'inherit' }}
+          >
+            <Trash2 size={14} />
+            {deletedCount > 0 && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: '-2px',
+                  right: '-2px',
+                  background: 'var(--ui-danger)',
+                  color: '#fff',
+                  fontSize: '0.62rem',
+                  fontWeight: 800,
+                  width: '15px',
+                  height: '15px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {deletedCount}
+              </span>
+            )}
+          </button>
+        )}
       </div>
 
-      {/* Divider */}
-      <div style={{ width: '1px', height: '22px', background: 'var(--ui-border)', flexShrink: 0 }} />
+      <div style={{ width: '1px', height: '18px', background: 'var(--ui-border)', flexShrink: 0 }} />
 
-      {/* Online / Offline Status */}
-      <div
-        className={`status-badge ${isOnline ? (syncing ? 'online syncing' : 'online') : 'offline'}`}
-        title={isOnline ? (syncing ? 'Syncing...' : 'Online (Synced)') : 'Offline — changes cached locally'}
-      >
-        <span className="status-dot" />
-        <span>{isOnline ? (syncing ? 'Syncing' : 'Online') : 'Offline'}</span>
+      {/* Export Board Menu Dropdown */}
+      <div style={{ position: 'relative' }} ref={exportMenuRef}>
+        <button
+          className="btn-secondary"
+          onClick={() => setShowExportMenu(!showExportMenu)}
+          title="Export Board Notes"
+          style={{ padding: '4px 10px', fontSize: '0.78rem', height: '32px' }}
+        >
+          <Download size={13} /> Export <ChevronDown size={12} style={{ transform: showExportMenu ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+        </button>
+
+        {showExportMenu && (
+          <div
+            className="dynamic-island-dropdown"
+            style={{
+              top: 'calc(100% + 8px)',
+              right: 0,
+              width: '190px',
+              padding: '6px',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="dynamic-island-note-item"
+              onClick={() => {
+                setShowExportMenu(false);
+                if (onExportPNG) onExportPNG();
+              }}
+            >
+              <ImageIcon size={14} /> PNG Image Snapshot
+            </button>
+            <button
+              className="dynamic-island-note-item"
+              onClick={() => {
+                setShowExportMenu(false);
+                if (onExportPDF) onExportPDF();
+              }}
+            >
+              <Printer size={14} /> Print / Save as PDF
+            </button>
+            <button
+              className="dynamic-island-note-item"
+              onClick={() => {
+                setShowExportMenu(false);
+                if (onExportMarkdown) onExportMarkdown();
+              }}
+            >
+              <FileText size={14} /> Markdown Document (.md)
+            </button>
+            <button
+              className="dynamic-island-note-item"
+              onClick={() => {
+                setShowExportMenu(false);
+                if (onExportJSON) onExportJSON();
+              }}
+            >
+              <FileCode size={14} /> JSON Backup (.json)
+            </button>
+          </div>
+        )}
       </div>
-
-      {/* PWA Install */}
-      <button
-        className="btn-icon"
-        onClick={handleInstallPWA}
-        title={isStandalone ? 'Installed as Standalone App' : 'Install as Desktop App'}
-        id="btn-install-pwa"
-        style={{
-          color: isStandalone ? 'var(--ui-success)' : 'inherit',
-          width: '34px',
-          height: '34px',
-        }}
-      >
-        {isStandalone ? <CheckCircle2 size={15} /> : <Download size={15} />}
-      </button>
 
       {/* Theme Toggle */}
       <button
         className="btn-icon"
         onClick={onToggleTheme}
         title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
-        id="btn-toggle-theme"
-        style={{ width: '34px', height: '34px' }}
+        style={{ width: '32px', height: '32px' }}
       >
-        {theme === 'light' ? <Moon size={15} /> : <Sun size={15} />}
+        {theme === 'light' ? <Moon size={14} /> : <Sun size={14} />}
       </button>
 
-      {/* User Info */}
+      {/* User Avatar & Admin Menu */}
       {user && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '2px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           <button
             className="btn-icon"
             onClick={onOpenUserManagement}
             title={user.role === 'admin' ? '👑 Super Admin Control Panel' : 'Manage Team Users'}
-            id="btn-user-management"
-            style={{ width: '34px', height: '34px', position: 'relative' }}
+            style={{ width: '32px', height: '32px', position: 'relative' }}
           >
-            <Users size={15} style={{ color: user.role === 'admin' ? '#ffd700' : 'var(--ui-accent)' }} />
-            {user.role === 'admin' && (
-              <span
-                style={{
-                  position: 'absolute',
-                  top: '-2px',
-                  right: '-2px',
-                  fontSize: '0.65rem',
-                }}
-                title="Super Admin"
-              >
-                👑
-              </span>
-            )}
+            <Users size={14} style={{ color: user.role === 'admin' ? '#ffd700' : 'var(--ui-accent)' }} />
           </button>
-          <div
-            className="user-avatar"
-            title={`${user.display_name || user.username} ${user.role === 'admin' ? '(Super Admin)' : ''}`}
-            style={{
-              background: user.role === 'admin'
-                ? 'linear-gradient(135deg, #ff9800, #e65100)'
-                : undefined,
-              boxShadow: user.role === 'admin' ? '0 0 8px rgba(255, 152, 0, 0.5)' : undefined,
-            }}
-          >
+          <div className="user-avatar" style={{ width: '26px', height: '26px', fontSize: '0.75rem' }}>
             {(user.display_name || user.username).charAt(0).toUpperCase()}
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
-            <span style={{ fontSize: '0.82rem', fontWeight: 700, maxWidth: '90px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              @{user.username}
-            </span>
-            {user.role === 'admin' && (
-              <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#ff9800', letterSpacing: '0.04em' }}>
-                👑 ADMIN
-              </span>
-            )}
-          </div>
-          <button
-            className="btn-icon"
-            onClick={onLogout}
-            title="Sign Out"
-            id="btn-logout"
-            style={{ width: '34px', height: '34px' }}
-          >
-            <LogOut size={15} />
+          <button className="btn-icon" onClick={onLogout} title="Sign Out" style={{ width: '32px', height: '32px' }}>
+            <LogOut size={14} />
           </button>
         </div>
       )}
@@ -570,118 +899,69 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         className="btn-icon"
         onClick={() => setIsCollapsed(true)}
         title="Collapse into Dynamic Island (Alt+I)"
-        id="btn-collapse-island"
-        style={{ width: '34px', height: '34px', color: 'var(--ui-accent)' }}
+        style={{ width: '32px', height: '32px', color: 'var(--ui-accent)' }}
       >
-        <Minimize2 size={15} />
+        <Minimize2 size={14} />
       </button>
 
-      {/* PWA Install Instructions Modal */}
+      {/* Create New Board Modal */}
+      {showNewBoardModal && (
+        <div className="modal-overlay" style={{ zIndex: 9999 }}>
+          <div className="modal-content" style={{ maxWidth: '400px', padding: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 700 }}>Create New Board</h3>
+              <button className="btn-icon" onClick={() => setShowNewBoardModal(false)}>
+                <X size={16} />
+              </button>
+            </div>
+            <form onSubmit={handleCreateBoardSubmit}>
+              <input
+                type="text"
+                placeholder="Board Name (e.g. Sprint 24, Personal...)"
+                value={newBoardName}
+                onChange={(e) => setNewBoardName(e.target.value)}
+                autoFocus
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--ui-border)',
+                  background: 'var(--ui-bg)',
+                  color: 'var(--ui-text)',
+                  fontSize: '0.88rem',
+                  marginBottom: '16px',
+                }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                <button type="button" className="btn-secondary" onClick={() => setShowNewBoardModal(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary">
+                  Create Board
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* PWA Install Modal */}
       {showInstallModal && (
         <div className="modal-overlay" style={{ zIndex: 9999 }}>
           <div className="modal-content" style={{ maxWidth: '520px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div
-                  style={{
-                    width: '40px',
-                    height: '40px',
-                    borderRadius: '12px',
-                    background: 'linear-gradient(135deg, var(--ui-accent), #ff6d00)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <Laptop size={20} color="#fff" />
-                </div>
+                <Laptop size={20} color="var(--ui-accent)" />
                 <h3 style={{ fontSize: '1.15rem', fontWeight: 700 }}>Install as Desktop App</h3>
               </div>
               <button className="btn-icon" onClick={() => setShowInstallModal(false)}>
                 <X size={18} />
               </button>
             </div>
-
-            <p style={{ fontSize: '0.9rem', color: 'var(--ui-text-muted)', lineHeight: '1.6', marginBottom: '20px' }}>
-              Open Sticky Notes in its <strong>own window with a separate app icon</strong> on Linux/Windows/Mac:
+            <p style={{ fontSize: '0.88rem', color: 'var(--ui-text-muted)' }}>
+              Open Sticky Notes in its own standalone desktop window!
             </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
-              {[
-                {
-                  step: 1,
-                  title: 'Install as App in Chrome',
-                  desc: 'In Chrome\'s address bar, click the Install icon. Or Chrome Menu (⋮) → Save and Share → Install Sticky Notes.',
-                },
-                {
-                  step: 2,
-                  title: 'Enable "Open as Window"',
-                  desc: 'Open chrome://apps, right-click Sticky Notes, and ensure "Open as window" is checked.',
-                },
-              ].map((item) => (
-                <div
-                  key={item.step}
-                  style={{
-                    display: 'flex',
-                    gap: '12px',
-                    padding: '14px',
-                    borderRadius: 'var(--radius-md)',
-                    background: 'var(--ui-accent-light)',
-                    border: '1px solid var(--ui-border)',
-                  }}
-                >
-                  <div
-                    style={{
-                      width: '28px',
-                      height: '28px',
-                      borderRadius: '50%',
-                      background: 'var(--ui-accent)',
-                      color: '#fff',
-                      fontWeight: 'bold',
-                      fontSize: '0.85rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                    }}
-                  >
-                    {item.step}
-                  </div>
-                  <div>
-                    <h4 style={{ fontSize: '0.92rem', fontWeight: 600, marginBottom: '4px' }}>{item.title}</h4>
-                    <p style={{ fontSize: '0.82rem', color: 'var(--ui-text-muted)', margin: 0, lineHeight: '1.5' }}>
-                      {item.desc}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div
-              style={{
-                padding: '10px 14px',
-                borderRadius: 'var(--radius-sm)',
-                border: '1px dashed var(--ui-border)',
-                fontSize: '0.82rem',
-                color: 'var(--ui-text-muted)',
-                marginBottom: '20px',
-              }}
-            >
-              💡 <strong>Tip:</strong> Once installed, you&apos;ll find a dedicated Sticky Notes shortcut in your application menu!
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-              {deferredPrompt && (
-                <button
-                  className="btn-primary"
-                  onClick={() => {
-                    setShowInstallModal(false);
-                    deferredPrompt.prompt();
-                  }}
-                >
-                  <Download size={14} /> Install Now
-                </button>
-              )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
               <button className="btn-secondary" onClick={() => setShowInstallModal(false)}>
                 Got it
               </button>

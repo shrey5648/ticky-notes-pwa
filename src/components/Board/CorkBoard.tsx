@@ -16,6 +16,22 @@ interface CorkBoardProps {
   onBringToFront: (id: string) => void;
 }
 
+export function autoArrangeNotes(notes: Note[], onUpdatePosition: (id: string, x: number, y: number) => void) {
+  const cardWidth = 300;
+  const cardHeight = 240;
+  const startX = 60;
+  const startY = 110;
+  const cols = Math.max(1, Math.floor((window.innerWidth - 120) / cardWidth));
+
+  notes.forEach((note, index) => {
+    const col = index % cols;
+    const row = Math.floor(index / cols);
+    const newX = startX + col * cardWidth;
+    const newY = startY + row * cardHeight;
+    onUpdatePosition(note.id, newX, newY);
+  });
+}
+
 export const CorkBoard: React.FC<CorkBoardProps> = ({
   notes,
   onUpdateNotePosition,

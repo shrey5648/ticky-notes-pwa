@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSessionUserFromHeader, hashPin } from '@/lib/auth';
 import { isSupabaseConfigured, supabaseAdmin } from '@/lib/supabase';
-import { mockUsers, mockNotes, mockShares, mockUserHashes } from '@/lib/mockStore';
+import { mockUsers, mockNotes, mockShares, mockUserHashes, saveStore } from '@/lib/mockStore';
 
 // PUT update user (role / PIN)
 export async function PUT(
@@ -53,6 +53,7 @@ export async function PUT(
       if (updates.role) mockUsers[userIndex].role = updates.role;
       if (updates.display_name) mockUsers[userIndex].display_name = updates.display_name;
       if (updates.pin_hash) mockUserHashes[targetUserId] = updates.pin_hash;
+      saveStore();
 
       return NextResponse.json({ user: mockUsers[userIndex] });
     }
@@ -111,6 +112,7 @@ export async function DELETE(
           mockShares.splice(i, 1);
         }
       }
+      saveStore();
 
       return NextResponse.json({ success: true, id: targetUserId });
     }
