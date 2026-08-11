@@ -16,6 +16,11 @@ import {
   User as UserIcon,
   Users,
   Filter,
+  X,
+  Monitor,
+  CheckCircle2,
+  ExternalLink,
+  Laptop,
 } from 'lucide-react';
 
 interface ToolbarProps {
@@ -72,12 +77,21 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 }) => {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showColorFilter, setShowColorFilter] = useState(false);
+  const [showInstallModal, setShowInstallModal] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
 
   useEffect(() => {
+    // Check if running in standalone mode (installed app window)
+    if (typeof window !== 'undefined') {
+      const isStandaloneMode = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
+      setIsStandalone(!!isStandaloneMode);
+    }
+
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e);
     };
+
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
   }, []);
@@ -88,9 +102,11 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       const choice = await deferredPrompt.userChoice;
       if (choice.outcome === 'accepted') {
         setDeferredPrompt(null);
+      } else {
+        setShowInstallModal(true);
       }
     } else {
-      alert('To install Sticky Notes as a desktop app:\n\nChrome/Edge: Click the install icon in the browser address bar.');
+      setShowInstallModal(true);
     }
   };
 
@@ -239,7 +255,12 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       </div>
 
       {/* PWA Install Button */}
-      <button className="btn-icon" onClick={handleInstallPWA} title="Install Sticky Notes Desktop App">
+      <button
+        className="btn-icon"
+        onClick={handleInstallPWA}
+        title={isStandalone ? "Installed as Standalone App" : "Install as Standalone Desktop App"}
+        style={{ color: isStandalone ? '#4caf50' : 'inherit' }}
+      >
         <Download size={16} />
       </button>
 
@@ -260,6 +281,72 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           </button>
         </div>
       )}
+
+      {/* PWA Standalone App Instructions Modal */}
+      {showInstallModal && (
+        <div className="modal-overlay" style={{ zIndex: 9999 }}>
+          <div className="modal-content" style={{ maxWidth: '520px', width: '90%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Laptop size={22} style={{ color: '#d7a15c' }} />
+                <h3 style={{ margin: 0, fontSize: '1.2rem' }}>Open as Separate Window & Icon</h3>
+              </div>
+              <button className="btn-icon" onClick={() => setShowInstallModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <p style={{ fontSize: '0.9rem', color: 'var(--ui-text-muted)', lineHeight: '1.5', marginTop: 0 }}>
+              To open Sticky Notes in its <strong>own window with a separate app icon</strong> on Linux/Windows/Mac instead of a browser tab, follow these 2 simple steps in Chrome:
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', margin: '20px 0' }}>
+              <div style={{ display: 'flex', gap: '12px', background: 'rgba(215, 161, 92, 0.1)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(215, 161, 92, 0.3)' }}>
+                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#d7a15c', color: '#fff', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>1</div>
+                <div>
+                  <h4 style={{ margin: '0 0 4px 0', fontSize: '0.95rem' }}>Install as App in Chrome</h4>
+                  <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--ui-text-muted)' }}>
+                    In Chrome's address bar (URL bar), click the <strong>Install</strong> icon (looks like a monitor with a down arrow). Or click Chrome <strong>Menu (⋮) &rarr; Save and Share &rarr; Install Sticky Notes</strong>.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', background: 'rgba(215, 161, 92, 0.1)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(215, 161, 92, 0.3)' }}>
+                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#d7a15c', color: '#fff', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>2</div>
+                <div>
+                  <h4 style={{ margin: '0 0 4px 0', fontSize: '0.95rem' }}>Enable "Open as Window"</h4>
+                  <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--ui-text-muted)' }}>
+                    Open <code>chrome://apps</code> in Chrome address bar, right-click <strong>Sticky Notes</strong>, and ensure <strong>"Open as window"</strong> is checked.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ background: 'var(--ui-bg)', padding: '10px 14px', borderRadius: '8px', border: '1px dashed var(--ui-border)', fontSize: '0.82rem', color: 'var(--ui-text-muted)', marginBottom: '18px' }}>
+              💡 <strong>Tip:</strong> Once installed, you will find a dedicated <strong>Sticky Notes</strong> desktop shortcut icon in your Linux system application menu and taskbar!
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              {deferredPrompt && (
+                <button
+                  className="btn-primary"
+                  onClick={() => {
+                    setShowInstallModal(false);
+                    deferredPrompt.prompt();
+                  }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Download size={15} /> Trigger Chrome Install
+                </button>
+              )}
+              <button className="btn-secondary" onClick={() => setShowInstallModal(false)}>
+                Got it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 };
+
