@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { verifyPin, signToken } from '@/lib/auth';
 import { isSupabaseConfigured, supabaseAdmin } from '@/lib/supabase';
 import { mockUsers, mockUserHashes } from '@/lib/mockStore';
+import { checkLoginRateLimit, recordFailedLogin, recordSuccessfulLogin } from '@/lib/authLimits';
 
 // ── Rate Limiter ────────────────────────────────────────────────────
 // In-memory rate limiter: 5 failed attempts per IP+username → 15-min lockout.
@@ -95,13 +96,26 @@ export async function POST(req: Request) {
 
     const cleanUsername = username.trim().toLowerCase();
 
-    // Check rate limit before doing any work
+    // Check custom rate limit and lockout state (rolling 12h logins / 2 incorrect attempts)
+    const limitCheck = checkLoginRateLimit(cleanUsername);
+    if (!limitCheck.allowed) {
+      const response = NextResponse.json(
+        { error: limitCheck.reason },
+        { status: 429 }
+      );
+      if (limitCheck.retryAfterSeconds) {
+        response.headers.set('Retry-After', String(limitCheck.retryAfterSeconds));
+      }
+      return response;
+    }
+
+    // Check IP-based connection rate limit
     const rateLimitKey = getRateLimitKey(req, cleanUsername);
     const { allowed, retryAfterSeconds } = checkRateLimit(rateLimitKey);
 
     if (!allowed) {
       const response = NextResponse.json(
-        { error: `Too many login attempts. Try again in ${retryAfterSeconds} seconds.` },
+        { error: `Too many connection attempts. Try again in ${retryAfterSeconds} seconds.` },
         { status: 429 }
       );
       response.headers.set('Retry-After', String(retryAfterSeconds));
@@ -120,6 +134,7 @@ export async function POST(req: Request) {
 
       if (error || !data) {
         recordFailedAttempt(rateLimitKey);
+        recordFailedLogin(cleanUsername);
         return NextResponse.json(
           { error: 'Invalid username or PIN.' },
           { status: 401 }
@@ -138,6 +153,7 @@ export async function POST(req: Request) {
       const found = mockUsers.find((u) => u.username === cleanUsername);
       if (!found) {
         recordFailedAttempt(rateLimitKey);
+        recordFailedLogin(cleanUsername);
         return NextResponse.json(
           { error: 'Invalid username or PIN.' },
           { status: 401 }
@@ -149,6 +165,7 @@ export async function POST(req: Request) {
 
     if (!pinHash) {
       recordFailedAttempt(rateLimitKey);
+      recordFailedLogin(cleanUsername);
       return NextResponse.json(
         { error: 'Invalid username or PIN.' },
         { status: 401 }
@@ -160,14 +177,16 @@ export async function POST(req: Request) {
 
     if (!isValid) {
       recordFailedAttempt(rateLimitKey);
+      recordFailedLogin(cleanUsername);
       return NextResponse.json(
         { error: 'Invalid username or PIN.' },
         { status: 401 }
       );
     }
 
-    // Successful login — clear rate limit
+    // Successful login — clear rate limit and record successful attempt
     clearRateLimit(rateLimitKey);
+    recordSuccessfulLogin(cleanUsername);
 
     const userRole = user.role || 'user';
 

@@ -18,16 +18,9 @@ import { ActivityFeedModal } from '@/components/Modals/ActivityFeedModal';
 import { PWAInstallBanner } from '@/components/PWA/PWAInstallBanner';
 import { triggerNativeNotification, requestNotificationPermission } from '@/lib/notifications';
 import { Note, User, Board, NoteConnection, NoteFrame } from '@/lib/types';
-import {
-  getLocalConnections,
-  saveSingleLocalConnection,
-  deleteLocalConnection,
-  saveLocalConnections,
-  getLocalFrames,
-  saveSingleLocalFrame,
-  deleteLocalFrame,
-  saveLocalFrames,
-} from '@/lib/db';
+import { useConnections } from '@/hooks/useConnections';
+import { useFrames } from '@/hooks/useFrames';
+import { useBoards } from '@/hooks/useBoards';
 import {
   exportBoardToJSON,
   exportBoardToMarkdown,
@@ -35,37 +28,33 @@ import {
   printBoardToPDF,
 } from '@/lib/exportUtils';
 import { useRouter } from 'next/navigation';
+import { generateUUID } from '@/lib/uuid';
+import { ErrorBoundary } from '@/components/Common/ErrorBoundary';
 
 export default function StickyNotesAppPage() {
   const { user, loading: authLoading, logout } = useAuth();
-  const { notes, loading: notesLoading, isOnline, syncing, createNote, updateNote, deleteNote } = useNotes(user?.id);
+  const {
+    notes,
+    loading: notesLoading,
+    isOnline,
+    syncing,
+    createNote,
+    updateNote,
+    deleteNote,
+    batchUpdateNotes,
+    batchCreateNotes,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+  } = useNotes(user?.id);
   const { theme, toggleTheme } = useTheme();
   const router = useRouter();
 
-  // Boards state
-  const [boards, setBoards] = useState<Board[]>([
-    { id: 'board-default', name: 'Main Board', owner_id: user?.id || 'admin', created_at: new Date().toISOString() },
-  ]);
-  const [currentBoardId, setCurrentBoardId] = useState<string>(() => {
-
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('active-board-id');
-      if (saved) return saved;
-    }
-    return 'board-default';
-  });
-
-  const handleSelectBoard = (boardId: string) => {
-    setCurrentBoardId(boardId);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('active-board-id', boardId);
-    }
-  };
-
-
-  // Phase 3 Canvas State
-  const [connections, setConnections] = useState<NoteConnection[]>([]);
-  const [frames, setFrames] = useState<NoteFrame[]>([]);
+  // Boards & Canvas Hooks
+  const { boards, setBoards, currentBoardId, onSelectBoard: handleSelectBoard, onCreateBoard: handleCreateBoard } = useBoards(user);
+  const { connections, onCreateConnection: handleCreateConnection, onUpdateConnection: handleUpdateConnection, onDeleteConnection: handleDeleteConnection } = useConnections(user, currentBoardId);
+  const { frames, onCreateFrame: handleCreateFrame, onUpdateFrame: handleUpdateFrame, onDeleteFrame: handleDeleteFrame } = useFrames(user, currentBoardId);
   const [themeVariant, setThemeVariant] = useState<'cork' | 'dark_leather' | 'blueprint' | 'grid_paper' | 'vintage_pastel' | 'glassmorphism'>('cork');
 
   // Filters state
@@ -96,8 +85,15 @@ export default function StickyNotesAppPage() {
 
   // Track mouse movement on window for live cursor broadcast
   useEffect(() => {
+    let lastBroadcast = 0;
+    const throttleMs = 80; // Broadcast at most once every 80ms
+
     const handleMouseMove = (e: MouseEvent) => {
-      broadcastCursorMove(e.clientX, e.clientY);
+      const now = Date.now();
+      if (now - lastBroadcast >= throttleMs) {
+        broadcastCursorMove(e.clientX, e.clientY);
+        lastBroadcast = now;
+      }
     };
     window.addEventListener('mousemove', handleMouseMove);
     return () => window.removeEventListener('mousemove', handleMouseMove);
@@ -112,11 +108,35 @@ export default function StickyNotesAppPage() {
   const [showTrashBin, setShowTrashBin] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
 
+  // Pending Delete Confirmation State
+  const [pendingDelete, setPendingDelete] = useState<{ id?: string; ids?: string[] } | null>(null);
+
 
 
   // Due Date Alarm State
   const [activeAlarms, setActiveAlarms] = useState<AlarmItem[]>([]);
-  const [dismissedAlarmIds, setDismissedAlarmIds] = useState<Record<string, number>>({});
+  const [dismissedAlarmIds, setDismissedAlarmIds] = useState<Record<string, number>>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('snoozed-alarms');
+        return saved ? JSON.parse(saved) : {};
+      } catch (e) {
+        console.error('Failed to load snoozed alarms:', e);
+      }
+    }
+    return {};
+  });
+
+  // Persist snooze alarms on change
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('snoozed-alarms', JSON.stringify(dismissedAlarmIds));
+      } catch (e) {
+        console.error('Failed to save snoozed alarms:', e);
+      }
+    }
+  }, [dismissedAlarmIds]);
 
   // Due Date Monitor Effect (runs every 30s)
   useEffect(() => {
@@ -124,7 +144,10 @@ export default function StickyNotesAppPage() {
 
     const checkDueDates = () => {
       const now = new Date();
-      const todayStr = now.toISOString().split('T')[0];
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const todayStr = `${year}-${month}-${day}`;
       const newAlarms: AlarmItem[] = [];
 
       notes.forEach((note) => {
@@ -134,9 +157,8 @@ export default function StickyNotesAppPage() {
         const snoozedUntil = dismissedAlarmIds[note.id];
         if (snoozedUntil && Date.now() < snoozedUntil) return;
 
-        const dueTime = new Date(note.due_date);
-        const isOverdue = dueTime < new Date(todayStr);
-        const isDueToday = note.due_date === todayStr || dueTime <= now;
+        const isDueToday = note.due_date === todayStr;
+        const isOverdue = note.due_date < todayStr;
 
         if (isDueToday || isOverdue) {
           newAlarms.push({ note, isOverdue });
@@ -191,21 +213,27 @@ export default function StickyNotesAppPage() {
     }
   }, [authLoading, user, router]);
 
-  // Global Keyboard Listener for Cmd+K / Ctrl+K Command Palette
+  // Global Keyboard Listener for Cmd+K / Ctrl+K Command Palette, and Undo/Redo (Ctrl+Z / Ctrl+Y)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         setShowCommandPalette((prev) => !prev);
+      } else if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+        e.preventDefault();
+        undo();
+      } else if ((e.metaKey || e.ctrlKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) {
+        e.preventDefault();
+        redo();
       } else if (e.key === 'Escape' && selectedNoteIds.length > 0) {
         setSelectedNoteIds([]);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedNoteIds.length]);
+  }, [selectedNoteIds.length, undo, redo]);
 
-  // Fetch workspace users and boards
+  // Fetch workspace users
   useEffect(() => {
     if (user) {
       fetch('/api/users')
@@ -214,84 +242,10 @@ export default function StickyNotesAppPage() {
           if (data.users) setWorkspaceUsers(data.users);
         })
         .catch((err) => console.error('Failed to fetch workspace users:', err));
-
-      fetch('/api/boards')
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.boards && data.boards.length > 0) {
-            setBoards(data.boards);
-          }
-        })
-        .catch((err) => console.error('Failed to fetch boards:', err));
     }
   }, [user]);
 
-  // Phase 3 Connections & Frames Fetch & Persistence Effect
-  useEffect(() => {
-    if (user) {
-      // 1. Load from localStorage immediately for instant offline rendering
-      let localStoredConns: NoteConnection[] = [];
-      let localStoredFrames: NoteFrame[] = [];
-      if (typeof window !== 'undefined') {
-        try {
-          const rawConns = localStorage.getItem(`connections-${currentBoardId}`) || localStorage.getItem('connections-global');
-          if (rawConns) localStoredConns = JSON.parse(rawConns);
-          const rawFrames = localStorage.getItem(`frames-${currentBoardId}`) || localStorage.getItem('frames-global');
-          if (rawFrames) localStoredFrames = JSON.parse(rawFrames);
-        } catch (e) {}
-      }
 
-      // 2. Load from IndexedDB
-      Promise.all([getLocalConnections(), getLocalFrames()]).then(([dbConns, dbFrames]) => {
-        const connMap = new Map<string, NoteConnection>();
-        localStoredConns.forEach((c) => connMap.set(c.id, c));
-        dbConns.forEach((c) => {
-          if (!c.board_id || c.board_id === currentBoardId) connMap.set(c.id, c);
-        });
-        const initialConns = Array.from(connMap.values());
-        if (initialConns.length > 0) setConnections(initialConns);
-
-        const frameMap = new Map<string, NoteFrame>();
-        localStoredFrames.forEach((f) => frameMap.set(f.id, f));
-        dbFrames.forEach((f) => {
-          if (!f.board_id || f.board_id === currentBoardId) frameMap.set(f.id, f);
-        });
-        const initialFrames = Array.from(frameMap.values());
-        if (initialFrames.length > 0) setFrames(initialFrames);
-
-        // 3. Fetch remote API if online and merge (never overwrite non-empty local state with empty API array)
-        fetch(`/api/connections?board_id=${currentBoardId}`)
-          .then((res) => res.json())
-          .then((data) => {
-            if (data.connections && Array.isArray(data.connections)) {
-              data.connections.forEach((c: NoteConnection) => connMap.set(c.id, c));
-              const mergedConns = Array.from(connMap.values());
-              setConnections(mergedConns);
-              saveLocalConnections(mergedConns);
-              if (typeof window !== 'undefined') {
-                localStorage.setItem(`connections-${currentBoardId}`, JSON.stringify(mergedConns));
-              }
-            }
-          })
-          .catch((err) => console.error('Failed to fetch connections:', err));
-
-        fetch(`/api/frames?board_id=${currentBoardId}`)
-          .then((res) => res.json())
-          .then((data) => {
-            if (data.frames && Array.isArray(data.frames)) {
-              data.frames.forEach((f: NoteFrame) => frameMap.set(f.id, f));
-              const mergedFrames = Array.from(frameMap.values());
-              setFrames(mergedFrames);
-              saveLocalFrames(mergedFrames);
-              if (typeof window !== 'undefined') {
-                localStorage.setItem(`frames-${currentBoardId}`, JSON.stringify(mergedFrames));
-              }
-            }
-          })
-          .catch((err) => console.error('Failed to fetch frames:', err));
-      });
-    }
-  }, [user, currentBoardId]);
 
   // Load saved canvas theme variant from localStorage on mount & when board changes
   useEffect(() => {
@@ -323,149 +277,7 @@ export default function StickyNotesAppPage() {
     }
   };
 
-  // Phase 3 Handlers for Connections & Frames
-  const handleCreateConnection = async (from_note_id: string, to_note_id: string) => {
-    const newConn: NoteConnection = {
-      id: `conn-${Date.now()}`,
-      board_id: currentBoardId,
-      from_note_id,
-      to_note_id,
-      color: '#6366f1',
-      style: 'solid',
-      arrow_type: 'end',
-      created_at: new Date().toISOString(),
-    };
-    setConnections((prev) => {
-      const updated = [...prev, newConn];
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(`connections-${currentBoardId}`, JSON.stringify(updated));
-        localStorage.setItem('connections-global', JSON.stringify(updated));
-      }
-      return updated;
-    });
-    await saveSingleLocalConnection(newConn);
-    fetch('/api/connections', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newConn),
-    }).catch((err) => console.error('Failed to save connection:', err));
-  };
 
-  const handleUpdateConnection = async (id: string, updates: Partial<NoteConnection>) => {
-    setConnections((prev) => {
-      const updated = prev.map((c) => (c.id === id ? { ...c, ...updates } : c));
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(`connections-${currentBoardId}`, JSON.stringify(updated));
-        localStorage.setItem('connections-global', JSON.stringify(updated));
-      }
-      return updated;
-    });
-    const conn = connections.find((c) => c.id === id);
-    if (conn) {
-      await saveSingleLocalConnection({ ...conn, ...updates });
-    }
-    fetch('/api/connections', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, ...updates }),
-    }).catch((err) => console.error('Failed to update connection:', err));
-  };
-
-  const handleDeleteConnection = async (id: string) => {
-    setConnections((prev) => {
-      const updated = prev.filter((c) => c.id !== id);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(`connections-${currentBoardId}`, JSON.stringify(updated));
-        localStorage.setItem('connections-global', JSON.stringify(updated));
-      }
-      return updated;
-    });
-    await deleteLocalConnection(id);
-    fetch(`/api/connections?id=${id}`, { method: 'DELETE' }).catch((err) =>
-      console.error('Failed to delete connection:', err)
-    );
-  };
-
-  const handleCreateFrame = async () => {
-    const newFrame: NoteFrame = {
-      id: `frame-${Date.now()}`,
-      board_id: currentBoardId,
-      title: '📌 Swimlane Section',
-      position_x: 120,
-      position_y: 120,
-      width: 450,
-      height: 350,
-      color: '#3b82f6',
-      created_at: new Date().toISOString(),
-    };
-    setFrames((prev) => {
-      const updated = [...prev, newFrame];
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(`frames-${currentBoardId}`, JSON.stringify(updated));
-        localStorage.setItem('frames-global', JSON.stringify(updated));
-      }
-      return updated;
-    });
-    await saveSingleLocalFrame(newFrame);
-    fetch('/api/frames', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newFrame),
-    }).catch((err) => console.error('Failed to create frame:', err));
-  };
-
-  const handleUpdateFrame = async (id: string, updates: Partial<NoteFrame>) => {
-    setFrames((prev) => {
-      const updated = prev.map((f) => (f.id === id ? { ...f, ...updates } : f));
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(`frames-${currentBoardId}`, JSON.stringify(updated));
-        localStorage.setItem('frames-global', JSON.stringify(updated));
-      }
-      return updated;
-    });
-    const frame = frames.find((f) => f.id === id);
-    if (frame) {
-      await saveSingleLocalFrame({ ...frame, ...updates });
-    }
-    fetch('/api/frames', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, ...updates }),
-    }).catch((err) => console.error('Failed to update frame:', err));
-  };
-
-  const handleDeleteFrame = async (id: string) => {
-    setFrames((prev) => {
-      const updated = prev.filter((f) => f.id !== id);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(`frames-${currentBoardId}`, JSON.stringify(updated));
-        localStorage.setItem('frames-global', JSON.stringify(updated));
-      }
-      return updated;
-    });
-    await deleteLocalFrame(id);
-    fetch(`/api/frames?id=${id}`, { method: 'DELETE' }).catch((err) =>
-      console.error('Failed to delete frame:', err)
-    );
-  };
-
-  // Create new board
-  const handleCreateBoard = async (name: string) => {
-    try {
-      const res = await fetch('/api/boards', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
-      });
-      const data = await res.json();
-      if (data.board) {
-        setBoards([...boards, data.board]);
-        setCurrentBoardId(data.board.id);
-      }
-    } catch (err) {
-      console.error('Failed to create board:', err);
-    }
-  };
 
   // Bring note to top z-index stack with normalization to prevent z-index inflation
   const handleBringToFront = (id: string) => {
@@ -504,46 +316,85 @@ export default function StickyNotesAppPage() {
 
   // Batch Operations Handlers
   const handleBatchUpdatePositions = (updates: { id: string; newX: number; newY: number }[]) => {
-    updates.forEach((u) => {
-      updateNote(u.id, { position_x: u.newX, position_y: u.newY });
-    });
+    const batchUpdates = updates.map((u) => ({
+      id: u.id,
+      updates: { position_x: u.newX, position_y: u.newY },
+    }));
+    batchUpdateNotes(batchUpdates);
   };
 
   const handleBatchDeleteNotes = () => {
-    selectedNoteIds.forEach((id) => {
-      updateNote(id, { is_deleted: true });
-    });
+    const batchUpdates = selectedNoteIds.map((id) => ({
+      id,
+      updates: { is_deleted: true },
+    }));
+    batchUpdateNotes(batchUpdates);
     setSelectedNoteIds([]);
   };
 
+  const requestDeleteNote = (id: string) => {
+    setPendingDelete({ id });
+  };
+
+  const requestBatchDeleteNotes = () => {
+    if (selectedNoteIds.length === 0) return;
+    setPendingDelete({ ids: selectedNoteIds });
+  };
+
+  const confirmDelete = () => {
+    if (!pendingDelete) return;
+    if (pendingDelete.id) {
+      deleteNote(pendingDelete.id);
+    } else if (pendingDelete.ids) {
+      handleBatchDeleteNotes();
+    }
+    setPendingDelete(null);
+  };
+
   const handleBatchPinToggle = (pinState: boolean) => {
-    selectedNoteIds.forEach((id) => {
-      updateNote(id, { is_pinned: pinState });
-    });
+    const batchUpdates = selectedNoteIds.map((id) => ({
+      id,
+      updates: { is_pinned: pinState },
+    }));
+    batchUpdateNotes(batchUpdates);
   };
 
   const handleBatchLockToggle = (lockState: boolean) => {
-    selectedNoteIds.forEach((id) => {
-      updateNote(id, { is_locked: lockState });
-    });
+    const batchUpdates = selectedNoteIds.map((id) => ({
+      id,
+      updates: { is_locked: lockState },
+    }));
+    batchUpdateNotes(batchUpdates);
   };
 
   const handleBatchRecolor = (color: string) => {
-    selectedNoteIds.forEach((id) => {
-      updateNote(id, { color });
-    });
+    const batchUpdates = selectedNoteIds.map((id) => ({
+      id,
+      updates: { color },
+    }));
+    batchUpdateNotes(batchUpdates);
   };
 
   const handleBatchTag = (tag: string) => {
-    selectedNoteIds.forEach((id) => {
-      const note = notes.find((n) => n.id === id);
-      if (note) {
-        const existingTags = note.tags || [];
-        if (!existingTags.includes(tag)) {
-          updateNote(id, { tags: [...existingTags, tag] });
+    const batchUpdates = selectedNoteIds
+      .map((id) => {
+        const note = notes.find((n) => n.id === id);
+        if (note) {
+          const existingTags = note.tags || [];
+          if (!existingTags.includes(tag)) {
+            return {
+              id,
+              updates: { tags: [...existingTags, tag] },
+            };
+          }
         }
-      }
-    });
+        return null;
+      })
+      .filter(Boolean) as { id: string; updates: Partial<Note> }[];
+
+    if (batchUpdates.length > 0) {
+      batchUpdateNotes(batchUpdates);
+    }
   };
 
   const handleBatchAlign = (mode: 'row' | 'column' | 'grid') => {
@@ -557,33 +408,90 @@ export default function StickyNotesAppPage() {
 
     if (mode === 'grid') {
       const cols = Math.ceil(Math.sqrt(selectedNotes.length));
-      selectedNotes.forEach((n, idx) => {
+      const batchUpdates = selectedNotes.map((n, idx) => {
         const col = idx % cols;
         const row = Math.floor(idx / cols);
-        updateNote(n.id, {
-          position_x: startX + col * cardWidth,
-          position_y: startY + row * cardHeight,
-        });
+        return {
+          id: n.id,
+          updates: {
+            position_x: startX + col * cardWidth,
+            position_y: startY + row * cardHeight,
+          },
+        };
       });
+      batchUpdateNotes(batchUpdates);
     }
   };
 
-  // Create Note with Dropped Image
-  const handleCreateNoteWithImage = (x: number, y: number, base64Image: string) => {
+  // Import Notes from Backup JSON File
+  const handleImportNotes = () => {
+    if (typeof document === 'undefined') return;
+
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/json';
+
+    input.onchange = async (e: Event) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          const raw = event.target?.result as string;
+          const payload = JSON.parse(raw);
+
+          if (!payload || !Array.isArray(payload.notes)) {
+            alert('Invalid backup file. Could not find notes list.');
+            return;
+          }
+
+          const importedNotes = payload.notes as Note[];
+          if (importedNotes.length === 0) {
+            alert('No notes found in the backup file.');
+            return;
+          }
+
+          // Process notes to generate unique IDs and associate with the current board
+          const processedNotes = importedNotes.map((note) => ({
+            ...note,
+            id: generateUUID(),
+            board_id: currentBoardId,
+            owner_id: user?.id || 'local-user',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            permission: 'owner' as const,
+          }));
+
+          await batchCreateNotes(processedNotes);
+          alert(`Successfully imported ${processedNotes.length} notes into your current board!`);
+        } catch (err) {
+          console.error('Failed to import backup file:', err);
+          alert('Failed to parse the backup JSON file. Ensure it is a valid Sticky Notes backup.');
+        }
+      };
+      reader.readAsText(file);
+    };
+
+    input.click();
+  };
+
+  // Create Note with Dropped Image URL
+  const handleCreateNoteWithImage = (x: number, y: number, imageUrl: string) => {
     createNote({
       board_id: currentBoardId,
       position_x: x,
       position_y: y,
       title: '🖼️ Image Note',
-      content: `<img src="${base64Image}" alt="Attached Image" style="max-width:100%; border-radius:8px; margin:8px 0;" />`,
+      content: `<img src="${imageUrl}" alt="Attached Image" style="max-width:100%; border-radius:8px; margin:8px 0;" />`,
     });
   };
 
-  // Attach Image to existing Note
-  const handleAttachImageToNote = (id: string, base64Image: string) => {
+  // Attach Image URL to existing Note
+  const handleAttachImageToNote = (id: string, imageUrl: string) => {
     const existing = notes.find((n) => n.id === id);
     if (existing) {
-      const newContent = `${existing.content || ''}<br/><img src="${base64Image}" alt="Attached Image" style="max-width:100%; border-radius:8px; margin:8px 0;" />`;
+      const newContent = `${existing.content || ''}<br/><img src="${imageUrl}" alt="Attached Image" style="max-width:100%; border-radius:8px; margin:8px 0;" />`;
       updateNote(id, { content: newContent });
     }
   };
@@ -709,98 +617,108 @@ export default function StickyNotesAppPage() {
 
   if (!user) return null;
 
-  const handleCreateNewNote = async () => {
-    const newNote = await createNote({ board_id: currentBoardId });
+  const handleCreateNewNote = async (x?: number, y?: number) => {
+    const newNote = await createNote({ board_id: currentBoardId, position_x: x, position_y: y });
     setEditingNote(newNote);
   };
 
   return (
     <main style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden' }}>
+      {/* Accessibility Skip Link */}
+      <a href="#corkboard-canvas" className="skip-to-content-link">
+        Skip to board content
+      </a>
+
       {/* Top Header Toolbar */}
-      <Toolbar
-        user={user}
-        notes={notes}
-        workspaceUsers={workspaceUsers}
-        presences={activePresences}
-        boards={boards}
-        currentBoardId={currentBoardId}
-        onSelectBoard={handleSelectBoard}
-        onCreateBoard={handleCreateBoard}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        selectedColor={selectedColor}
-        onColorSelect={setSelectedColor}
-        selectedUserFilter={selectedUserFilter}
-        onUserFilterSelect={setSelectedUserFilter}
-        selectedTagFilter={selectedTagFilter}
-        onTagFilterSelect={setSelectedTagFilter}
-        availableTags={availableTags}
-        showPinnedOnly={showPinnedOnly}
-        onTogglePinnedOnly={() => setShowPinnedOnly(!showPinnedOnly)}
-        showSharedOnly={showSharedOnly}
-        onToggleSharedOnly={() => setShowSharedOnly(!showSharedOnly)}
-        showArchived={showArchived}
-        onToggleArchived={() => setShowArchived(!showArchived)}
-        deletedCount={deletedNotes.length}
-        onOpenTrashBin={() => setShowTrashBin(true)}
-        onOpenActivityFeed={() => setShowActivityFeed(true)}
-        onAutoArrange={handleAutoArrange}
-        onExportJSON={() => exportBoardToJSON(filteredNotes, boardName)}
-        onExportMarkdown={() => exportBoardToMarkdown(filteredNotes, boardName)}
-        onExportPNG={() => exportBoardToPNG(boardName)}
-        onExportPDF={printBoardToPDF}
-        isOnline={isOnline}
-        syncing={syncing}
-        theme={theme}
-        themeVariant={themeVariant}
-        onSelectThemeVariant={(variant: any) => handleSelectThemeVariant(variant)}
-        onToggleTheme={toggleTheme}
-        onCreateNote={handleCreateNewNote}
-        onSelectNote={(note) => setEditingNote(note)}
-        onOpenUserManagement={() => setShowUserManagement(true)}
-        onLogout={logout}
-      />
+      <ErrorBoundary errorMessage="Something went wrong while rendering the header toolbar. Please try reloading it.">
+        <Toolbar
+          user={user}
+          notes={notes}
+          workspaceUsers={workspaceUsers}
+          presences={activePresences}
+          boards={boards}
+          currentBoardId={currentBoardId}
+          onSelectBoard={handleSelectBoard}
+          onCreateBoard={handleCreateBoard}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          selectedColor={selectedColor}
+          onColorSelect={setSelectedColor}
+          selectedUserFilter={selectedUserFilter}
+          onUserFilterSelect={setSelectedUserFilter}
+          selectedTagFilter={selectedTagFilter}
+          onTagFilterSelect={setSelectedTagFilter}
+          availableTags={availableTags}
+          showPinnedOnly={showPinnedOnly}
+          onTogglePinnedOnly={() => setShowPinnedOnly(!showPinnedOnly)}
+          showSharedOnly={showSharedOnly}
+          onToggleSharedOnly={() => setShowSharedOnly(!showSharedOnly)}
+          showArchived={showArchived}
+          onToggleArchived={() => setShowArchived(!showArchived)}
+          deletedCount={deletedNotes.length}
+          onOpenTrashBin={() => setShowTrashBin(true)}
+          onOpenActivityFeed={() => setShowActivityFeed(true)}
+          onAutoArrange={handleAutoArrange}
+          onExportJSON={() => exportBoardToJSON(filteredNotes, boardName)}
+          onExportMarkdown={() => exportBoardToMarkdown(filteredNotes, boardName)}
+          onExportPNG={() => exportBoardToPNG(boardName)}
+          onExportPDF={printBoardToPDF}
+          isOnline={isOnline}
+          syncing={syncing}
+          theme={theme}
+          themeVariant={themeVariant}
+          onSelectThemeVariant={(variant: any) => handleSelectThemeVariant(variant)}
+          onToggleTheme={toggleTheme}
+          onCreateNote={handleCreateNewNote}
+          onSelectNote={(note) => setEditingNote(note)}
+          onOpenUserManagement={() => setShowUserManagement(true)}
+          onLogout={logout}
+        />
+      </ErrorBoundary>
 
       {/* Cork Board Canvas */}
-      <CorkBoard
-        notes={filteredNotes}
-        selectedNoteIds={selectedNoteIds}
-        themeVariant={themeVariant}
-        connections={connections}
-        frames={frames}
-        presences={activePresences}
-        onSelectNote={handleSelectNote}
-        onClearSelection={handleClearSelection}
-        onSetSelection={handleSetSelection}
-        onUpdateNotePosition={(id, x, y) => {
-          updateNote(id, { position_x: x, position_y: y });
-          broadcastNoteMove(id, x, y);
-        }}
-        onBatchUpdatePositions={handleBatchUpdatePositions}
-        onEditNote={setEditingNote}
-        onDeleteNote={deleteNote}
-        onBatchDeleteNotes={handleBatchDeleteNotes}
-        onPinToggle={(id, isPinned) => updateNote(id, { is_pinned: isPinned })}
-        onBatchPinToggle={handleBatchPinToggle}
-        onLockToggle={(id, isLocked) => updateNote(id, { is_locked: isLocked })}
-        onBatchLockToggle={handleBatchLockToggle}
-        onArchiveToggle={(id, isArchived) => updateNote(id, { is_archived: isArchived })}
-        onShareNote={setSharingNote}
-        onBringToFront={handleBringToFront}
-        onBatchRecolor={handleBatchRecolor}
-        onBatchTag={handleBatchTag}
-        onBatchAlign={handleBatchAlign}
-        onCreateNoteWithImage={handleCreateNoteWithImage}
-        onAttachImage={handleAttachImageToNote}
-        onOpenComments={(note) => setCommentingNote(note)}
-        onStickerChange={(id, sticker) => updateNote(id, { sticker: sticker || undefined })}
-        onCreateConnection={handleCreateConnection}
-        onUpdateConnection={handleUpdateConnection}
-        onDeleteConnection={handleDeleteConnection}
-        onCreateFrame={handleCreateFrame}
-        onUpdateFrame={handleUpdateFrame}
-        onDeleteFrame={handleDeleteFrame}
-      />
+      <ErrorBoundary errorMessage="An error occurred rendering the CorkBoard infinite canvas. You can reload the canvas stage to recover your session.">
+        <CorkBoard
+          notes={filteredNotes}
+          selectedNoteIds={selectedNoteIds}
+          themeVariant={themeVariant}
+          connections={connections}
+          frames={frames}
+          presences={activePresences}
+          onCreateNote={handleCreateNewNote}
+          onSelectNote={handleSelectNote}
+          onClearSelection={handleClearSelection}
+          onSetSelection={handleSetSelection}
+          onUpdateNotePosition={(id, x, y) => {
+            updateNote(id, { position_x: x, position_y: y });
+            broadcastNoteMove(id, x, y);
+          }}
+          onBatchUpdatePositions={handleBatchUpdatePositions}
+          onEditNote={setEditingNote}
+          onDeleteNote={requestDeleteNote}
+          onBatchDeleteNotes={requestBatchDeleteNotes}
+          onPinToggle={(id, isPinned) => updateNote(id, { is_pinned: isPinned })}
+          onBatchPinToggle={handleBatchPinToggle}
+          onLockToggle={(id, isLocked) => updateNote(id, { is_locked: isLocked })}
+          onBatchLockToggle={handleBatchLockToggle}
+          onArchiveToggle={(id, isArchived) => updateNote(id, { is_archived: isArchived })}
+          onShareNote={setSharingNote}
+          onBringToFront={handleBringToFront}
+          onBatchRecolor={handleBatchRecolor}
+          onBatchTag={handleBatchTag}
+          onBatchAlign={handleBatchAlign}
+          onCreateNoteWithImage={handleCreateNoteWithImage}
+          onAttachImage={handleAttachImageToNote}
+          onOpenComments={(note) => setCommentingNote(note)}
+          onStickerChange={(id, sticker) => updateNote(id, { sticker: sticker || undefined })}
+          onCreateConnection={handleCreateConnection}
+          onUpdateConnection={handleUpdateConnection}
+          onDeleteConnection={handleDeleteConnection}
+          onCreateFrame={handleCreateFrame}
+          onUpdateFrame={handleUpdateFrame}
+          onDeleteFrame={handleDeleteFrame}
+        />
+      </ErrorBoundary>
 
       {/* Rich Text Note Editor Modal */}
       <NoteEditor
@@ -811,7 +729,7 @@ export default function StickyNotesAppPage() {
           updateNote(id, updates);
           setEditingNote((prev) => (prev && prev.id === id ? { ...prev, ...updates } : prev));
         }}
-        onDelete={deleteNote}
+        onDelete={requestDeleteNote}
         onShare={setSharingNote}
       />
 
@@ -864,7 +782,7 @@ export default function StickyNotesAppPage() {
         onOpenTrash={() => setShowTrashBin(true)}
         onOpenUserManagement={() => setShowUserManagement(true)}
         onExport={() => exportBoardToJSON(filteredNotes, boardName)}
-        onImport={() => {}}
+        onImport={handleImportNotes}
         onToggleTheme={toggleTheme}
         isAdmin={user.role === 'admin'}
       />
@@ -880,6 +798,47 @@ export default function StickyNotesAppPage() {
 
       {/* Custom PWA Install Experience Banner */}
       <PWAInstallBanner />
+
+      {/* Delete Confirmation Dialog */}
+      {pendingDelete && (
+        <div className="modal-overlay" style={{ zIndex: 1100 }}>
+          <div className="modal-content" style={{ maxWidth: '400px', padding: '24px', textAlign: 'center' }}>
+            <div style={{ fontSize: '3rem', marginBottom: '16px' }}>🗑️</div>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '8px', color: 'var(--ui-text)' }}>
+              {pendingDelete.ids ? 'Delete Selected Notes?' : 'Delete Sticky Note?'}
+            </h3>
+            <p style={{ fontSize: '0.88rem', color: 'var(--ui-text-muted)', marginBottom: '24px', lineHeight: 1.5 }}>
+              {pendingDelete.ids 
+                ? `Are you sure you want to move these ${pendingDelete.ids.length} notes to the Trash Bin?`
+                : 'Are you sure you want to move this note to the Trash Bin? You can restore it later.'}
+            </p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <button 
+                className="btn-secondary" 
+                onClick={() => setPendingDelete(null)}
+                style={{ padding: '8px 20px', minWidth: '100px' }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={confirmDelete}
+                style={{ 
+                  padding: '8px 20px', 
+                  minWidth: '100px',
+                  background: 'var(--ui-danger)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 'var(--radius-sm)',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

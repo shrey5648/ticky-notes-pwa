@@ -4,6 +4,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { User, Note, Board } from '@/lib/types';
 import { PresenceBar } from './PresenceBar';
 import { UserPresence } from '@/lib/types';
+import { BoardSelector } from './BoardSelector';
+import { ExportMenu } from './ExportMenu';
+import { ThemeSelector } from './ThemeSelector';
 import {
   Plus,
   Search,
@@ -145,14 +148,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
   const [isCollapsed, setIsCollapsed] = useState(true);
   const [showNotesPicker, setShowNotesPicker] = useState(false);
-  const [showBoardDropdown, setShowBoardDropdown] = useState(false);
-  const [showCanvasThemeMenu, setShowCanvasThemeMenu] = useState(false);
-  const [showColorFilter, setShowColorFilter] = useState(false);
-  const [showUserFilter, setShowUserFilter] = useState(false);
-  const [showTagFilter, setShowTagFilter] = useState(false);
-  const [showExportMenu, setShowExportMenu] = useState(false);
-  const [showNewBoardModal, setShowNewBoardModal] = useState(false);
-  const [newBoardName, setNewBoardName] = useState('');
+  const [showFiltersMenu, setShowFiltersMenu] = useState(false);
   const [quickSearch, setQuickSearch] = useState('');
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallModal, setShowInstallModal] = useState(false);
@@ -160,10 +156,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   const [searchFocused, setSearchFocused] = useState(false);
 
   const pickerRef = useRef<HTMLDivElement>(null);
-  const boardDropdownRef = useRef<HTMLDivElement>(null);
   const userFilterRef = useRef<HTMLDivElement>(null);
   const tagFilterRef = useRef<HTMLDivElement>(null);
-  const exportMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -204,17 +198,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
         setShowNotesPicker(false);
       }
-      if (boardDropdownRef.current && !boardDropdownRef.current.contains(e.target as Node)) {
-        setShowBoardDropdown(false);
-      }
-      if (userFilterRef.current && !userFilterRef.current.contains(e.target as Node)) {
-        setShowUserFilter(false);
-      }
       if (tagFilterRef.current && !tagFilterRef.current.contains(e.target as Node)) {
-        setShowTagFilter(false);
-      }
-      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
-        setShowExportMenu(false);
+        setShowFiltersMenu(false);
       }
     };
     document.addEventListener('mousedown', handleOutsideClick);
@@ -235,14 +220,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     }
   };
 
-  const handleCreateBoardSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newBoardName.trim() && onCreateBoard) {
-      onCreateBoard(newBoardName.trim());
-      setNewBoardName('');
-      setShowNewBoardModal(false);
-    }
-  };
+
 
   const quickFilteredNotes = notes
     .filter((n) => !n.is_archived && !n.is_deleted)
@@ -410,64 +388,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   // Expanded Full Toolbar View — Single Clean Horizontal Row
   return (
     <header className="top-toolbar dynamic-island expanded" style={{ flexWrap: 'nowrap', gap: '8px', overflowX: 'auto', whiteSpace: 'nowrap' }}>
-      {/* Compact Board Switcher Dropdown */}
-      <div style={{ position: 'relative' }} ref={boardDropdownRef}>
-        <button
-          className="board-tab active"
-          onClick={() => setShowBoardDropdown(!showBoardDropdown)}
-          title="Switch Workspace Board"
-          style={{ padding: '5px 12px', fontSize: '0.82rem', height: '32px' }}
-        >
-          <StickyNote size={13} /> {currentBoardObj?.name || 'Main Board'}{' '}
-          <ChevronDown size={13} style={{ transform: showBoardDropdown ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
-        </button>
-
-        {showBoardDropdown && (
-          <div
-            className="dynamic-island-dropdown"
-            style={{
-              top: 'calc(100% + 8px)',
-              left: 0,
-              width: '210px',
-              padding: '8px',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ fontSize: '0.75rem', fontWeight: 700, padding: '2px 4px 6px 4px', color: 'var(--ui-text-muted)', textTransform: 'uppercase' }}>
-              Workspace Boards
-            </div>
-            {boards.map((b) => (
-              <button
-                key={b.id}
-                className="dynamic-island-note-item"
-                style={{
-                  background: currentBoardId === b.id ? 'var(--ui-accent-light)' : 'transparent',
-                  borderColor: currentBoardId === b.id ? 'var(--ui-accent)' : 'var(--ui-border)',
-                }}
-                onClick={() => {
-                  if (onSelectBoard) onSelectBoard(b.id);
-                  setShowBoardDropdown(false);
-                }}
-              >
-                <StickyNote size={13} style={{ color: 'var(--ui-accent)' }} />
-                <span style={{ fontSize: '0.82rem', fontWeight: 600, flex: 1 }}>{b.name}</span>
-                {currentBoardId === b.id && <Check size={13} style={{ color: 'var(--ui-accent)' }} />}
-              </button>
-            ))}
-            <div style={{ height: '1px', background: 'var(--ui-border)', margin: '4px 0' }} />
-            <button
-              className="dynamic-island-note-item"
-              onClick={() => {
-                setShowBoardDropdown(false);
-                setShowNewBoardModal(true);
-              }}
-            >
-              <FolderPlus size={14} style={{ color: 'var(--ui-accent)' }} />
-              <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>Create New Board</span>
-            </button>
-          </div>
-        )}
-      </div>
+      {/* Board Selector */}
+      <BoardSelector
+        boards={boards || []}
+        currentBoardId={currentBoardId || 'board-default'}
+        onSelectBoard={onSelectBoard}
+        onCreateBoard={onCreateBoard}
+      />
 
       {/* Online Presence Bar */}
       <PresenceBar currentUser={user} presences={presences} />
@@ -547,407 +474,269 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       </div>
 
       {/* Filter Toggles Group */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-        {/* Color filter */}
-        <div style={{ position: 'relative' }}>
-          <button
-            className="btn-icon"
-            onClick={() => setShowColorFilter(!showColorFilter)}
-            title="Filter by color"
-            id="btn-filter-color"
-            style={{
-              background: selectedColor ? selectedColor : 'transparent',
-              border: selectedColor ? '2px solid var(--ui-accent)' : 'none',
-              width: '32px',
-              height: '32px',
-            }}
-          >
-            <Filter size={14} />
-          </button>
+      {/* Integrated Filters Dropdown */}
+      {(() => {
+        const activeFiltersCount = [
+          showPinnedOnly ? 1 : 0,
+          showSharedOnly ? 1 : 0,
+          showArchived ? 1 : 0,
+          selectedColor ? 1 : 0,
+          selectedUserFilter ? 1 : 0,
+          selectedTagFilter ? 1 : 0,
+        ].reduce((a, b) => a + b, 0);
 
-          {showColorFilter && (
-            <div className="color-picker-popover" style={{ gridTemplateColumns: 'repeat(4, 1fr)', minWidth: '140px' }}>
+        const handleClearAllFilters = () => {
+          if (showPinnedOnly) onTogglePinnedOnly();
+          if (showSharedOnly) onToggleSharedOnly();
+          if (showArchived) onToggleArchived();
+          if (selectedColor) onColorSelect(null);
+          if (selectedUserFilter) onUserFilterSelect(null);
+          if (selectedTagFilter && onTagFilterSelect) onTagFilterSelect(null);
+        };
+
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <div style={{ position: 'relative' }} ref={tagFilterRef}>
               <button
-                onClick={() => { onColorSelect(null); setShowColorFilter(false); }}
-                className="color-swatch"
+                className="btn-secondary"
+                onClick={() => setShowFiltersMenu(!showFiltersMenu)}
+                title="Filter Board Notes"
                 style={{
-                  background: 'linear-gradient(135deg, #eee, #ccc)',
-                  gridColumn: 'span 4',
-                  width: '100%',
-                  height: '24px',
-                  borderRadius: 'var(--radius-sm)',
-                  border: '1px solid var(--ui-border)',
-                  cursor: 'pointer',
-                  fontSize: '0.7rem',
+                  height: '32px',
+                  padding: '0 12px',
+                  fontSize: '0.8rem',
+                  border: activeFiltersCount > 0 ? '1.5px solid var(--ui-accent)' : '1px solid var(--ui-border)',
+                  background: activeFiltersCount > 0 ? 'var(--ui-accent-light)' : 'var(--ui-bg)',
+                  color: activeFiltersCount > 0 ? 'var(--ui-accent)' : 'var(--ui-text)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  borderRadius: '50px',
                   fontWeight: 600,
-                  color: '#666',
+                  cursor: 'pointer',
                 }}
               >
-                All Colors
-              </button>
-              {COLOR_PRESETS.map((cp) => (
-                <button
-                  key={cp.value}
-                  onClick={() => { onColorSelect(cp.value); setShowColorFilter(false); }}
-                  className={`color-swatch ${selectedColor === cp.value ? 'active' : ''}`}
-                  style={{ backgroundColor: cp.value, border: '1px solid rgba(0,0,0,0.15)' }}
-                  title={cp.name}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Filter by User */}
-        <div style={{ position: 'relative' }} ref={userFilterRef}>
-          <button
-            className="btn-icon"
-            onClick={() => setShowUserFilter(!showUserFilter)}
-            title={selectedUserFilter ? 'Filter active by User' : 'Filter notes by user'}
-            style={{
-              background: selectedUserFilter ? 'var(--ui-accent-light)' : 'transparent',
-              color: selectedUserFilter ? 'var(--ui-accent)' : 'inherit',
-              border: selectedUserFilter ? '1.5px solid var(--ui-accent)' : 'none',
-              width: '32px',
-              height: '32px',
-            }}
-          >
-            <UserCheck size={14} />
-          </button>
-
-          {showUserFilter && (
-            <div
-              className="dynamic-island-dropdown"
-              style={{
-                top: 'calc(100% + 8px)',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                width: '240px',
-                padding: '10px',
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div style={{ fontSize: '0.78rem', fontWeight: 700, padding: '2px 4px 6px 4px', color: 'var(--ui-text-muted)', textTransform: 'uppercase' }}>
-                Filter Notes by User
-              </div>
-              <button
-                className="dynamic-island-note-item"
-                style={{
-                  background: selectedUserFilter === null ? 'var(--ui-accent-light)' : 'transparent',
-                  borderColor: selectedUserFilter === null ? 'var(--ui-accent)' : 'var(--ui-border)',
-                }}
-                onClick={() => {
-                  onUserFilterSelect(null);
-                  setShowUserFilter(false);
-                }}
-              >
-                <Users size={14} style={{ color: 'var(--ui-accent)' }} />
-                <span style={{ fontSize: '0.82rem', fontWeight: 600, flex: 1 }}>All Users Notes</span>
-                {selectedUserFilter === null && <Check size={14} style={{ color: 'var(--ui-accent)' }} />}
-              </button>
-
-              {user && (
-                <button
-                  className="dynamic-island-note-item"
-                  style={{
-                    background: selectedUserFilter === user.id ? 'var(--ui-accent-light)' : 'transparent',
-                    borderColor: selectedUserFilter === user.id ? 'var(--ui-accent)' : 'var(--ui-border)',
-                  }}
-                  onClick={() => {
-                    onUserFilterSelect(user.id);
-                    setShowUserFilter(false);
-                  }}
-                >
-                  <div className="user-avatar" style={{ width: '20px', height: '20px', fontSize: '0.68rem' }}>
-                    {(user.display_name || user.username).charAt(0).toUpperCase()}
-                  </div>
-                  <span style={{ fontSize: '0.82rem', fontWeight: 600, flex: 1 }}>My Notes Only</span>
-                  {selectedUserFilter === user.id && <Check size={14} style={{ color: 'var(--ui-accent)' }} />}
-                </button>
-              )}
-
-              {workspaceUsers.length > 1 && (
-                <div style={{ height: '1px', background: 'var(--ui-border)', margin: '4px 0' }} />
-              )}
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '180px', overflowY: 'auto' }}>
-                {workspaceUsers
-                  .filter((u) => u.id !== user?.id)
-                  .map((u) => (
-                    <button
-                      key={u.id}
-                      className="dynamic-island-note-item"
-                      style={{
-                        background: selectedUserFilter === u.id ? 'var(--ui-accent-light)' : 'transparent',
-                        borderColor: selectedUserFilter === u.id ? 'var(--ui-accent)' : 'var(--ui-border)',
-                      }}
-                      onClick={() => {
-                        onUserFilterSelect(u.id);
-                        setShowUserFilter(false);
-                      }}
-                    >
-                      <div className="user-avatar" style={{ width: '20px', height: '20px', fontSize: '0.68rem', background: '#9e9e9e' }}>
-                        {(u.display_name || u.username).charAt(0).toUpperCase()}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
-                        <div style={{ fontSize: '0.8rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {u.display_name || u.username}
-                        </div>
-                      </div>
-                      {selectedUserFilter === u.id && <Check size={14} style={{ color: 'var(--ui-accent)' }} />}
-                    </button>
-                  ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Filter by Tag */}
-        {onTagFilterSelect && availableTags.length > 0 && (
-          <div style={{ position: 'relative' }} ref={tagFilterRef}>
-            <button
-              className="btn-icon"
-              onClick={() => setShowTagFilter(!showTagFilter)}
-              title="Filter by Tag"
-              style={{
-                background: selectedTagFilter ? 'var(--ui-accent-light)' : 'transparent',
-                color: selectedTagFilter ? 'var(--ui-accent)' : 'inherit',
-                border: selectedTagFilter ? '1.5px solid var(--ui-accent)' : 'none',
-                width: '32px',
-                height: '32px',
-              }}
-            >
-              <Tag size={14} />
-            </button>
-
-            {showTagFilter && (
-              <div
-                className="dynamic-island-dropdown"
-                style={{
-                  top: 'calc(100% + 8px)',
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  width: '200px',
-                  padding: '8px',
-                }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div style={{ fontSize: '0.78rem', fontWeight: 700, padding: '2px 4px 6px 4px', color: 'var(--ui-text-muted)', textTransform: 'uppercase' }}>
-                  Filter by Tag
-                </div>
-                <button
-                  className="dynamic-island-note-item"
-                  onClick={() => {
-                    onTagFilterSelect(null);
-                    setShowTagFilter(false);
-                  }}
-                >
-                  <Tag size={13} /> All Tags
-                </button>
-                {availableTags.map((t) => (
-                  <button
-                    key={t}
-                    className="dynamic-island-note-item"
+                <Filter size={13} style={{ marginRight: '4px' }} /> Filters
+                {activeFiltersCount > 0 && (
+                  <span
                     style={{
-                      background: selectedTagFilter === t ? 'var(--ui-accent-light)' : 'transparent',
-                      borderColor: selectedTagFilter === t ? 'var(--ui-accent)' : 'var(--ui-border)',
-                    }}
-                    onClick={() => {
-                      onTagFilterSelect(t);
-                      setShowTagFilter(false);
+                      background: 'var(--ui-accent)',
+                      color: '#fff',
+                      borderRadius: '10px',
+                      padding: '1px 6px',
+                      fontSize: '0.68rem',
+                      fontWeight: 700,
+                      marginLeft: '5px',
                     }}
                   >
-                    <span style={{ fontWeight: 600 }}>#{t}</span>
-                    {selectedTagFilter === t && <Check size={13} style={{ color: 'var(--ui-accent)', marginLeft: 'auto' }} />}
-                  </button>
-                ))}
-              </div>
+                    {activeFiltersCount}
+                  </span>
+                )}
+                <ChevronDown size={12} style={{ transform: showFiltersMenu ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', marginLeft: '5px' }} />
+              </button>
+
+              {showFiltersMenu && (
+                <div
+                  className="dynamic-island-dropdown"
+                  style={{
+                    top: 'calc(100% + 8px)',
+                    right: 0,
+                    width: '280px',
+                    padding: '16px',
+                    maxHeight: '480px',
+                    overflowY: 'auto',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px',
+                    textAlign: 'left',
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--ui-text)' }}>Filter Notes</span>
+                    {activeFiltersCount > 0 && (
+                      <button
+                        onClick={handleClearAllFilters}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--ui-accent)',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Clear All
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Quick Toggles */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={showPinnedOnly} onChange={onTogglePinnedOnly} style={{ accentColor: 'var(--ui-accent)' }} />
+                      <span>📌 Pinned Only</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={showSharedOnly} onChange={onToggleSharedOnly} style={{ accentColor: 'var(--ui-accent)' }} />
+                      <span>👥 Shared Only</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={showArchived} onChange={onToggleArchived} style={{ accentColor: 'var(--ui-accent)' }} />
+                      <span>📦 Archived Notes</span>
+                    </label>
+                  </div>
+
+                  <div style={{ height: '1px', background: 'var(--ui-border)' }} />
+
+                  {/* Filter by User */}
+                  <div>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--ui-text-muted)', marginBottom: '6px', textTransform: 'uppercase' }}>Filter by User</div>
+                    <select
+                      value={selectedUserFilter || ''}
+                      onChange={(e) => onUserFilterSelect(e.target.value || null)}
+                      style={{
+                        width: '100%',
+                        padding: '6px 8px',
+                        borderRadius: '6px',
+                        border: '1px solid var(--ui-border)',
+                        background: 'var(--ui-bg)',
+                        color: 'var(--ui-text)',
+                        fontSize: '0.82rem',
+                        outline: 'none',
+                      }}
+                    >
+                      <option value="">All Users</option>
+                      {user && <option value={user.id}>Me ({user.display_name || user.username})</option>}
+                      {workspaceUsers
+                        .filter((u) => u.id !== user?.id)
+                        .map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.display_name || u.username}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  {/* Filter by Tag */}
+                  {onTagFilterSelect && availableTags.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--ui-text-muted)', marginBottom: '6px', textTransform: 'uppercase' }}>Filter by Tag</div>
+                      <select
+                        value={selectedTagFilter || ''}
+                        onChange={(e) => onTagFilterSelect(e.target.value || null)}
+                        style={{
+                          width: '100%',
+                          padding: '6px 8px',
+                          borderRadius: '6px',
+                          border: '1px solid var(--ui-border)',
+                          background: 'var(--ui-bg)',
+                          color: 'var(--ui-text)',
+                          fontSize: '0.82rem',
+                          outline: 'none',
+                        }}
+                      >
+                        <option value="">All Tags</option>
+                        {availableTags.map((t) => (
+                          <option key={t} value={t}>
+                            #{t}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Filter by Color */}
+                  <div>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--ui-text-muted)', marginBottom: '6px', textTransform: 'uppercase' }}>Filter by Color</div>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      <button
+                        onClick={() => onColorSelect(null)}
+                        style={{
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          border: selectedColor === null ? '1.5px solid var(--ui-accent)' : '1px solid var(--ui-border)',
+                          background: selectedColor === null ? 'var(--ui-accent-light)' : 'var(--ui-bg)',
+                          color: selectedColor === null ? 'var(--ui-accent)' : 'var(--ui-text-muted)',
+                          fontSize: '0.7rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Clear
+                      </button>
+                      {COLOR_PRESETS.map((cp) => (
+                        <button
+                          key={cp.value}
+                          onClick={() => onColorSelect(cp.value)}
+                          style={{
+                            width: '20px',
+                            height: '20px',
+                            borderRadius: '50%',
+                            backgroundColor: cp.value,
+                            border: selectedColor === cp.value ? '2px solid var(--ui-accent)' : '1px solid rgba(0,0,0,0.15)',
+                            cursor: 'pointer',
+                          }}
+                          title={cp.name}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Trash Bin Trigger */}
+            {onOpenTrashBin && (
+              <button
+                className="btn-icon"
+                onClick={onOpenTrashBin}
+                title="Open Trash Bin"
+                aria-label="Open Trash Bin"
+                style={{ width: '32px', height: '32px', position: 'relative', color: deletedCount > 0 ? 'var(--ui-danger)' : 'inherit' }}
+              >
+                <Trash2 size={14} />
+                {deletedCount > 0 && (
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: '-2px',
+                      right: '-2px',
+                      background: 'var(--ui-danger)',
+                      color: '#fff',
+                      fontSize: '0.62rem',
+                      fontWeight: 800,
+                      width: '15px',
+                      height: '15px',
+                      borderRadius: '50%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {deletedCount}
+                  </span>
+                )}
+              </button>
             )}
           </div>
-        )}
-
-        {/* Pinned filter */}
-        <button
-          className="btn-icon"
-          onClick={onTogglePinnedOnly}
-          title="Pinned notes"
-          style={{
-            background: showPinnedOnly ? 'var(--ui-accent-light)' : 'transparent',
-            color: showPinnedOnly ? 'var(--ui-accent)' : 'inherit',
-            width: '32px',
-            height: '32px',
-          }}
-        >
-          <Pin size={14} />
-        </button>
-
-        {/* Archive toggle */}
-        <button
-          className="btn-icon"
-          onClick={onToggleArchived}
-          title={showArchived ? 'View active notes' : 'View archived'}
-          style={{
-            background: showArchived ? 'var(--ui-accent-light)' : 'transparent',
-            color: showArchived ? 'var(--ui-accent)' : 'inherit',
-            width: '32px',
-            height: '32px',
-          }}
-        >
-          <Archive size={14} />
-        </button>
-
-        {/* Trash Bin Trigger */}
-        {onOpenTrashBin && (
-          <button
-            className="btn-icon"
-            onClick={onOpenTrashBin}
-            title="Open Trash Bin"
-            style={{ width: '32px', height: '32px', position: 'relative', color: deletedCount > 0 ? 'var(--ui-danger)' : 'inherit' }}
-          >
-            <Trash2 size={14} />
-            {deletedCount > 0 && (
-              <span
-                style={{
-                  position: 'absolute',
-                  top: '-2px',
-                  right: '-2px',
-                  background: 'var(--ui-danger)',
-                  color: '#fff',
-                  fontSize: '0.62rem',
-                  fontWeight: 800,
-                  width: '15px',
-                  height: '15px',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                {deletedCount}
-              </span>
-            )}
-          </button>
-        )}
-      </div>
+        );
+      })()}
 
       <div style={{ width: '1px', height: '18px', background: 'var(--ui-border)', flexShrink: 0 }} />
 
-      {/* Export Board Menu Dropdown */}
-      <div style={{ position: 'relative' }} ref={exportMenuRef}>
-        <button
-          className="btn-secondary"
-          onClick={() => setShowExportMenu(!showExportMenu)}
-          title="Export Board Notes"
-          style={{ padding: '4px 10px', fontSize: '0.78rem', height: '32px' }}
-        >
-          <Download size={13} /> Export <ChevronDown size={12} style={{ transform: showExportMenu ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
-        </button>
+      {/* Export Board Menu */}
+      <ExportMenu
+        onExportJSON={onExportJSON}
+        onExportMarkdown={onExportMarkdown}
+        onExportPNG={onExportPNG}
+        onExportPDF={onExportPDF}
+      />
 
-        {showExportMenu && (
-          <div
-            className="dynamic-island-dropdown"
-            style={{
-              top: 'calc(100% + 8px)',
-              right: 0,
-              width: '190px',
-              padding: '6px',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              className="dynamic-island-note-item"
-              onClick={() => {
-                setShowExportMenu(false);
-                if (onExportPNG) onExportPNG();
-              }}
-            >
-              <ImageIcon size={14} /> PNG Image Snapshot
-            </button>
-            <button
-              className="dynamic-island-note-item"
-              onClick={() => {
-                setShowExportMenu(false);
-                if (onExportPDF) onExportPDF();
-              }}
-            >
-              <Printer size={14} /> Print / Save as PDF
-            </button>
-            <button
-              className="dynamic-island-note-item"
-              onClick={() => {
-                setShowExportMenu(false);
-                if (onExportMarkdown) onExportMarkdown();
-              }}
-            >
-              <FileText size={14} /> Markdown Document (.md)
-            </button>
-            <button
-              className="dynamic-island-note-item"
-              onClick={() => {
-                setShowExportMenu(false);
-                if (onExportJSON) onExportJSON();
-              }}
-            >
-              <FileCode size={14} /> JSON Backup (.json)
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Canvas Theme Selector Dropdown */}
-      {onSelectThemeVariant && (
-        <div style={{ position: 'relative' }}>
-          <button
-            className="btn-icon"
-            onClick={() => setShowCanvasThemeMenu(!showCanvasThemeMenu)}
-            title="Change Canvas Background Theme"
-            style={{ width: '32px', height: '32px' }}
-          >
-            🎨
-          </button>
-
-          {showCanvasThemeMenu && (
-            <div
-              className="dynamic-island-dropdown"
-              style={{
-                top: 'calc(100% + 8px)',
-                right: 0,
-                width: '180px',
-                padding: '6px',
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div style={{ fontSize: '0.75rem', fontWeight: 700, padding: '2px 4px 6px 4px', color: 'var(--ui-text-muted)', textTransform: 'uppercase' }}>
-                Canvas Themes
-              </div>
-              {[
-                { id: 'cork', name: '🪵 Classic Cork' },
-                { id: 'dark_leather', name: '🖤 Dark Leather' },
-                { id: 'blueprint', name: '📐 Blueprint' },
-                { id: 'grid_paper', name: '📄 Grid Paper' },
-                { id: 'vintage_pastel', name: '🎨 Vintage Pastel' },
-                { id: 'glassmorphism', name: '🔮 Glassmorphism' },
-              ].map((t) => (
-                <button
-                  key={t.id}
-                  className="dynamic-island-note-item"
-                  style={{
-                    background: themeVariant === t.id ? 'var(--ui-accent-light)' : 'transparent',
-                    borderColor: themeVariant === t.id ? 'var(--ui-accent)' : 'var(--ui-border)',
-                  }}
-                  onClick={() => {
-                    onSelectThemeVariant(t.id);
-                    setShowCanvasThemeMenu(false);
-                  }}
-                >
-                  <span style={{ fontSize: '0.82rem', fontWeight: 600, flex: 1 }}>{t.name}</span>
-                  {themeVariant === t.id && <Check size={13} style={{ color: 'var(--ui-accent)' }} />}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      {/* Canvas Theme Selector */}
+      <ThemeSelector
+        themeVariant={themeVariant}
+        onSelectThemeVariant={onSelectThemeVariant}
+      />
 
       {/* Theme Toggle */}
       <button
@@ -989,46 +778,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <Minimize2 size={14} />
       </button>
 
-      {/* Create New Board Modal */}
-      {showNewBoardModal && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '400px', padding: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <h3 style={{ fontSize: '1.05rem', fontWeight: 700 }}>Create New Board</h3>
-              <button className="btn-icon" onClick={() => setShowNewBoardModal(false)}>
-                <X size={16} />
-              </button>
-            </div>
-            <form onSubmit={handleCreateBoardSubmit}>
-              <input
-                type="text"
-                placeholder="Board Name (e.g. Sprint 24, Personal...)"
-                value={newBoardName}
-                onChange={(e) => setNewBoardName(e.target.value)}
-                autoFocus
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  borderRadius: 'var(--radius-sm)',
-                  border: '1px solid var(--ui-border)',
-                  background: 'var(--ui-bg)',
-                  color: 'var(--ui-text)',
-                  fontSize: '0.88rem',
-                  marginBottom: '16px',
-                }}
-              />
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                <button type="button" className="btn-secondary" onClick={() => setShowNewBoardModal(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn-primary">
-                  Create Board
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+
 
       {/* PWA Install Modal */}
       {showInstallModal && (

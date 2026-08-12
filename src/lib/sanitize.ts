@@ -6,8 +6,6 @@
  *
  * Allowed elements: standard text formatting, lists, links, tables, images, Tiptap editor elements.
  * Blocked: <script>, <iframe>, <object>, <embed>, <form>, event handlers (onclick, onerror, etc.)
- *
- * For stronger guarantees, upgrade to DOMPurify: `npm install dompurify`
  */
 
 // Elements allowed in sanitized output
@@ -51,8 +49,56 @@ const TAG_ALLOWED_ATTRS: Record<string, Set<string>> = {
 // Dangerous attribute name patterns (event handlers)
 const DANGEROUS_ATTR_PATTERN = /^on/i;
 
-// Dangerous URL schemes
-const DANGEROUS_URL_PATTERN = /^\s*(javascript|vbscript|data\s*:(?!image\/(png|jpeg|gif|webp|svg\+xml)))/i;
+// Allowed CSS properties for inline style attribute
+const ALLOWED_CSS_PROPERTIES = new Set([
+  'color', 'background-color', 'text-align', 'font-size', 'font-family', 
+  'font-weight', 'font-style', 'text-decoration', 'border-radius', 
+  'margin', 'padding', 'max-width', 'width', 'height', 'display', 
+  'justify-content', 'align-items', 'gap', 'line-height', 'border', 
+  'border-top', 'border-bottom', 'border-left', 'border-right'
+]);
+
+function sanitizeUrl(url: string): string | null {
+  // Remove all control characters, whitespace, and tabs to prevent bypasses like "java\nscript:"
+  const normalized = url.replace(/[\x00-\x20\s]/g, '');
+  
+  // Check if it's a safe data image URL
+  const isDataImage = /^data:image\/(png|jpeg|gif|webp|svg\+xml);base64,/i.test(normalized);
+  
+  // Check against dangerous protocols
+  if (/^(javascript|vbscript|data:)/i.test(normalized) && !isDataImage) {
+    return null;
+  }
+  
+  return url;
+}
+
+function sanitizeStyle(styleString: string): string {
+  const declarations = styleString.split(';');
+  const cleanDeclarations: string[] = [];
+
+  for (const decl of declarations) {
+    const parts = decl.split(':');
+    if (parts.length !== 2) continue;
+    const prop = parts[0].trim().toLowerCase();
+    const val = parts[1].trim();
+
+    if (ALLOWED_CSS_PROPERTIES.has(prop)) {
+      // Ensure the value doesn't contain javascript/expression or other malicious constructs
+      const normalizedVal = val.replace(/[\x00-\x20\s]/g, '').toLowerCase();
+      if (
+        !normalizedVal.includes('javascript:') &&
+        !normalizedVal.includes('expression(') &&
+        !normalizedVal.includes('behavior:') &&
+        !normalizedVal.includes('-moz-binding')
+      ) {
+        cleanDeclarations.push(`${prop}: ${val}`);
+      }
+    }
+  }
+
+  return cleanDeclarations.join('; ');
+}
 
 function sanitizeNode(node: Node): Node | null {
   if (node.nodeType === Node.TEXT_NODE) {
@@ -96,15 +142,14 @@ function sanitizeNode(node: Node): Node | null {
 
     // Sanitize URLs in href/src attributes
     if (attrName === 'href' || attrName === 'src') {
-      if (DANGEROUS_URL_PATTERN.test(value)) continue;
+      const sanitizedUrl = sanitizeUrl(value);
+      if (!sanitizedUrl) continue;
+      value = sanitizedUrl;
     }
 
     // Sanitize style attribute — remove expressions and javascript URLs
     if (attrName === 'style') {
-      value = value
-        .replace(/expression\s*\(/gi, '')
-        .replace(/javascript\s*:/gi, '')
-        .replace(/url\s*\(\s*['"]?\s*javascript/gi, '');
+      value = sanitizeStyle(value);
     }
 
     clean.setAttribute(attrName, value);

@@ -6,6 +6,7 @@ import { Note } from '@/lib/types';
 import { Pin, Share2, Trash2, Edit3, Lock, Unlock, Archive, User as UserIcon, Calendar, Tag, MessageSquare, Sparkles } from 'lucide-react';
 import { sanitizeHtml } from '@/lib/sanitize';
 import { PRESET_STICKERS, StickerPicker } from './StickerPicker';
+import { uploadImageFile } from '@/lib/upload';
 
 interface StickyNoteProps {
   note: Note;
@@ -23,9 +24,10 @@ interface StickyNoteProps {
   onStartConnect?: (id: string) => void;
   onOpenComments?: (note: Note) => void;
   onStickerChange?: (id: string, sticker: string | null) => void;
+  onUpdatePosition?: (id: string, newX: number, newY: number) => void;
 }
 
-export const StickyNote: React.FC<StickyNoteProps> = ({
+const StickyNoteComponent: React.FC<StickyNoteProps> = ({
   note,
   index,
   isSelected = false,
@@ -41,6 +43,7 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
   onStartConnect,
   onOpenComments,
   onStickerChange,
+  onUpdatePosition,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [isLocked, setIsLocked] = useState(note.is_locked || false);
@@ -75,21 +78,54 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
     onBringToFront(note.id);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (isReadOnly || note.is_locked) return;
+
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      onEdit(note);
+      return;
+    }
+
+    const isArrow = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key);
+    if (!isArrow) return;
+
+    const shiftAmt = e.shiftKey ? 30 : 10;
+    let nextX = note.position_x;
+    let nextY = note.position_y;
+
+    if (e.key === 'ArrowUp') {
+      nextY -= shiftAmt;
+    } else if (e.key === 'ArrowDown') {
+      nextY += shiftAmt;
+    } else if (e.key === 'ArrowLeft') {
+      nextX -= shiftAmt;
+    } else if (e.key === 'ArrowRight') {
+      nextX += shiftAmt;
+    }
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (onUpdatePosition) {
+      onUpdatePosition(note.id, nextX, nextY);
+    }
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragOver(false);
     const files = Array.from(e.dataTransfer.files);
     const imageFile = files.find((f) => f.type.startsWith('image/'));
     if (imageFile && onAttachImage) {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const base64 = ev.target?.result as string;
-        if (base64) {
-          onAttachImage(note.id, base64);
-        }
-      };
-      reader.readAsDataURL(imageFile);
+      try {
+        const url = await uploadImageFile(imageFile);
+        onAttachImage(note.id, url);
+      } catch (err: any) {
+        console.error('Note image drop failed:', err);
+        alert(err.message || 'Failed to upload dropped image.');
+      }
     }
   };
 
@@ -142,13 +178,13 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
     const diffDays = Math.ceil((due.getTime() - now.getTime()) / (1000 * 3600 * 24));
 
     if (diffDays < 0) {
-      return { type: 'overdue', label: `Overdue (${Math.abs(diffDays)}d)` };
+      return { type: 'overdue', label: `⚠️ Overdue (${Math.abs(diffDays)}d)` };
     } else if (diffDays === 0) {
-      return { type: 'today', label: 'Due Today' };
+      return { type: 'today', label: '⏰ Due Today' };
     } else if (diffDays <= 3) {
-      return { type: 'soon', label: `Due in ${diffDays}d` };
+      return { type: 'soon', label: `📅 Due in ${diffDays}d` };
     }
-    return { type: 'normal', label: due.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) };
+    return { type: 'normal', label: `📅 ${due.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` };
   };
 
   const dueBadge = getDueDateBadge(note.due_date);
@@ -194,6 +230,8 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
       onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
       onDragLeave={() => setIsDragOver(false)}
       onDrop={handleDrop}
+      onKeyDown={handleKeyDown}
+      aria-label={`${note.title || 'Sticky Note'}, color ${note.color}. Press Arrow Keys to move card, press Enter to open editor.`}
       {...attributes}
       {...listeners}
     >
@@ -250,6 +288,7 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
               className="btn-icon"
               style={{ width: '26px', height: '26px' }}
               title="Stamp Sticker Badge"
+              aria-label="Stamp Sticker Badge"
               onClick={() => setShowStickerPicker(!showStickerPicker)}
             >
               <Sparkles size={13} style={{ color: note.sticker ? '#f59e0b' : '#666' }} />
@@ -273,6 +312,7 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
             className="btn-icon"
             style={{ width: '26px', height: '26px' }}
             title={note.is_pinned ? 'Unpin' : 'Pin'}
+            aria-label={note.is_pinned ? 'Unpin note' : 'Pin note'}
             onClick={() => onPinToggle(note.id, !note.is_pinned)}
           >
             <Pin size={13} style={{ color: note.is_pinned ? '#d32f2f' : '#666' }} />
@@ -281,6 +321,7 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
             className="btn-icon"
             style={{ width: '26px', height: '26px' }}
             title={isLocked ? 'Unlock description' : 'Lock description (Hide content)'}
+            aria-label={isLocked ? 'Unlock note description' : 'Lock note description'}
             onClick={handleLockToggle}
           >
             {isLocked ? (
@@ -294,6 +335,7 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
               className="btn-icon"
               style={{ width: '26px', height: '26px' }}
               title="Connect to another note"
+              aria-label="Connect to another note"
               onClick={() => onStartConnect(note.id)}
             >
               <span style={{ fontSize: '12px' }}>🔗</span>
@@ -304,6 +346,7 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
               className="btn-icon"
               style={{ width: '26px', height: '26px' }}
               title="Edit note"
+              aria-label="Edit note"
               onClick={() => onEdit(note)}
             >
               <Edit3 size={13} />
@@ -457,6 +500,7 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
               className="btn-icon"
               style={{ width: '24px', height: '24px', position: 'relative' }}
               title="Open Comments Thread"
+              aria-label="Open Comments Thread"
               onClick={() => onOpenComments(note)}
             >
               <MessageSquare size={12} />
@@ -489,6 +533,7 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
               className="btn-icon"
               style={{ width: '24px', height: '24px' }}
               title="Share"
+              aria-label="Share note"
               onClick={() => onShare(note)}
             >
               <Share2 size={12} />
@@ -498,6 +543,7 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
             className="btn-icon"
             style={{ width: '24px', height: '24px' }}
             title={note.is_archived ? 'Unarchive' : 'Archive'}
+            aria-label={note.is_archived ? 'Unarchive note' : 'Archive note'}
             onClick={() => onArchiveToggle(note.id, !note.is_archived)}
           >
             <Archive size={12} />
@@ -507,6 +553,7 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
               className="btn-icon"
               style={{ width: '24px', height: '24px', color: 'var(--ui-danger)' }}
               title="Delete note (Move to Trash Bin)"
+              aria-label="Delete note"
               onClick={() => onDelete(note.id)}
             >
               <Trash2 size={12} />
@@ -518,4 +565,32 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
     </div>
   );
 };
+
+const noteEqual = (prev: Note, next: Note) => {
+  return (
+    prev.id === next.id &&
+    prev.title === next.title &&
+    prev.content === next.content &&
+    prev.color === next.color &&
+    prev.position_x === next.position_x &&
+    prev.position_y === next.position_y &&
+    prev.is_pinned === next.is_pinned &&
+    prev.is_locked === next.is_locked &&
+    prev.is_archived === next.is_archived &&
+    prev.sticker === next.sticker &&
+    prev.z_index === next.z_index &&
+    prev.permission === next.permission &&
+    prev.updated_at === next.updated_at &&
+    prev.comments_count === next.comments_count &&
+    JSON.stringify(prev.tags) === JSON.stringify(next.tags)
+  );
+};
+
+export const StickyNote = React.memo(StickyNoteComponent, (prevProps, nextProps) => {
+  return (
+    prevProps.index === nextProps.index &&
+    prevProps.isSelected === nextProps.isSelected &&
+    noteEqual(prevProps.note, nextProps.note)
+  );
+});
 

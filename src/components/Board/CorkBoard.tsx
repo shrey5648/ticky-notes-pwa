@@ -11,6 +11,7 @@ import { SwimlaneFrame } from './SwimlaneFrame';
 import { MiniMapRadar } from './MiniMapRadar';
 import { LiveCursorsOverlay } from './LiveCursorsOverlay';
 import { ZoomIn, ZoomOut, Maximize2, Move, Link2, LayoutGrid } from 'lucide-react';
+import { uploadImageFile } from '@/lib/upload';
 
 interface CorkBoardProps {
   notes: Note[];
@@ -39,6 +40,7 @@ interface CorkBoardProps {
   onBatchTag?: (tag: string) => void;
   onBatchAlign?: (mode: 'row' | 'column' | 'grid') => void;
 
+  onCreateNote?: (x?: number, y?: number) => void;
   onCreateNoteWithImage?: (x: number, y: number, base64Image: string) => void;
   onAttachImage?: (id: string, base64Image: string) => void;
   onOpenComments?: (note: Note) => void;
@@ -76,6 +78,7 @@ export const CorkBoard: React.FC<CorkBoardProps> = ({
   connections = [],
   frames = [],
   presences = [],
+  onCreateNote,
   onSelectNote,
   onClearSelection,
   onSetSelection,
@@ -238,6 +241,23 @@ export const CorkBoard: React.FC<CorkBoardProps> = ({
     }
   };
 
+  // Double Click Handler to create a note at cursor position
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    const isBackground =
+      target.classList.contains('cork-board') ||
+      target.classList.contains('empty-board') ||
+      target.classList.contains('canvas-stage') ||
+      target.tagName === 'MAIN' ||
+      target.classList.contains('connections-svg-layer');
+
+    if (isBackground && onCreateNote) {
+      const coords = screenToCanvasCoords(e.clientX, e.clientY);
+      // Center the note card on click position (note size is roughly 290x240)
+      onCreateNote(Math.round(coords.x - 145), Math.round(coords.y - 120));
+    }
+  };
+
   // Canvas Mouse Down Handler (Marquee Selection / Panning / Connection Target)
   const handleMouseDown = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
@@ -338,20 +358,19 @@ export const CorkBoard: React.FC<CorkBoardProps> = ({
   };
 
   // Canvas Dropped Image Handler
-  const handleCanvasDrop = (e: React.DragEvent) => {
+  const handleCanvasDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     const files = Array.from(e.dataTransfer.files);
     const imageFile = files.find((f) => f.type.startsWith('image/'));
     if (imageFile && onCreateNoteWithImage) {
       const coords = screenToCanvasCoords(e.clientX, e.clientY);
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const base64 = ev.target?.result as string;
-        if (base64) {
-          onCreateNoteWithImage(Math.round(coords.x - 100), Math.round(coords.y - 60), base64);
-        }
-      };
-      reader.readAsDataURL(imageFile);
+      try {
+        const url = await uploadImageFile(imageFile);
+        onCreateNoteWithImage(Math.round(coords.x - 100), Math.round(coords.y - 60), url);
+      } catch (err: any) {
+        console.error('Canvas image drop failed:', err);
+        alert(err.message || 'Failed to upload dropped image.');
+      }
     }
   };
 
@@ -383,11 +402,14 @@ export const CorkBoard: React.FC<CorkBoardProps> = ({
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div
+        id="corkboard-canvas"
+        tabIndex={-1}
         ref={boardRef}
         className={`cork-board theme-${themeVariant}`}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
+        onDoubleClick={handleDoubleClick}
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleCanvasDrop}
         style={{
@@ -445,7 +467,64 @@ export const CorkBoard: React.FC<CorkBoardProps> = ({
             <div className="empty-board">
               <div className="empty-icon">📝</div>
               <h3>Your Board is Empty</h3>
-              <p>Click <strong>+ New Note</strong> or drop an image here to create your sticky note!</p>
+              <p style={{ marginBottom: '18px' }}>Double click anywhere or click the button below to create your first note!</p>
+              
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => onCreateNote && onCreateNote(150, 150)}
+                style={{
+                  pointerEvents: 'auto',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '10px 22px',
+                  fontSize: '0.92rem',
+                  boxShadow: '0 4px 12px rgba(230, 81, 0, 0.3)',
+                  marginBottom: '32px',
+                  border: 'none',
+                  borderRadius: '50px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  color: '#fff',
+                }}
+              >
+                <span>➕</span> Create Sticky Note
+              </button>
+
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gap: '16px',
+                  maxWidth: '560px',
+                  margin: '0 auto',
+                  pointerEvents: 'auto',
+                }}
+              >
+                {[
+                  { icon: '🖱️', title: 'Double Click', desc: 'Double click anywhere on the cork board to instantly create a new note.' },
+                  { icon: '🖼️', title: 'Drag & Drop', desc: 'Drag and drop image files directly from your computer onto the canvas.' },
+                  { icon: '🔗', title: 'Link Notes', desc: 'Connect related notes to form mind maps or diagrams with connection lines.' },
+                  { icon: '⌨️', title: 'Palette Hotkey', desc: 'Press Ctrl + K (or Cmd + K) to open the global command search.' },
+                ].map((tile, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      background: 'var(--ui-surface)',
+                      border: '1px solid var(--ui-border)',
+                      borderRadius: '12px',
+                      padding: '14px',
+                      textAlign: 'left',
+                      boxShadow: 'var(--shadow-sm)',
+                    }}
+                  >
+                    <div style={{ fontSize: '1.4rem', marginBottom: '8px' }}>{tile.icon}</div>
+                    <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '6px', color: 'var(--ui-text)' }}>{tile.title}</div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--ui-text-muted)', lineHeight: '1.4' }}>{tile.desc}</div>
+                  </div>
+                ))}
+              </div>
             </div>
           ) : (
             notes.map((note, index) => (
@@ -466,6 +545,7 @@ export const CorkBoard: React.FC<CorkBoardProps> = ({
                 onStartConnect={handleStartConnect}
                 onOpenComments={onOpenComments}
                 onStickerChange={onStickerChange}
+                onUpdatePosition={onUpdateNotePosition}
               />
             ))
           )}
@@ -530,6 +610,7 @@ export const CorkBoard: React.FC<CorkBoardProps> = ({
             setPanX(px);
             setPanY(py);
           }}
+          onSetZoom={setZoom}
         />
 
         {/* Connection Line Edit Popover / Modal */}

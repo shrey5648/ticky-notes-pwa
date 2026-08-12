@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import { ToastProvider } from '@/context/ToastContext';
 
 export const metadata: Metadata = {
   title: 'Sticky Notes — PWA Desktop & Web App',
@@ -20,7 +21,6 @@ export const viewport: Viewport = {
   themeColor: '#e65100',
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
 };
 
 export default function RootLayout({
@@ -48,7 +48,9 @@ export default function RootLayout({
         />
       </head>
       <body>
-        {children}
+        <ToastProvider>
+          {children}
+        </ToastProvider>
         <script
           dangerouslySetInnerHTML={{
             __html: `

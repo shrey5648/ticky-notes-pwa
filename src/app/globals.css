@@ -428,7 +428,7 @@ body {
 
 .note-title {
   font-family: var(--font-note);
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 700;
   line-height: 1.25;
   color: #111;
@@ -439,7 +439,7 @@ body {
 /* Note Body */
 .note-body {
   font-family: var(--font-note);
-  font-size: 18px;
+  font-size: 14px;
   line-height: 1.4;
   color: #222;
   flex: 1;
@@ -800,43 +800,43 @@ body {
 }
 
 [data-theme='dark'] .note-color-yellow {
-  background-color: #f9a825;
-  color: #1a1a1a;
+  background-color: hsl(50, 60%, 70%);
+  color: #111111;
 }
 
 [data-theme='dark'] .note-color-pink {
-  background-color: #ec407a;
-  color: #1a1a1a;
+  background-color: hsl(340, 50%, 75%);
+  color: #111111;
 }
 
 [data-theme='dark'] .note-color-blue {
-  background-color: #29b6f6;
-  color: #1a1a1a;
+  background-color: hsl(200, 50%, 75%);
+  color: #111111;
 }
 
 [data-theme='dark'] .note-color-green {
-  background-color: #66bb6a;
-  color: #1a1a1a;
+  background-color: hsl(125, 40%, 72%);
+  color: #111111;
 }
 
 [data-theme='dark'] .note-color-orange {
-  background-color: #ffa726;
-  color: #1a1a1a;
+  background-color: hsl(35, 55%, 72%);
+  color: #111111;
 }
 
 [data-theme='dark'] .note-color-purple {
-  background-color: #ab47bc;
-  color: #1a1a1a;
+  background-color: hsl(285, 40%, 75%);
+  color: #111111;
 }
 
 [data-theme='dark'] .note-color-coral {
-  background-color: #ff7043;
-  color: #1a1a1a;
+  background-color: hsl(15, 60%, 75%);
+  color: #111111;
 }
 
 [data-theme='dark'] .note-color-white {
-  background-color: #e0e0e0;
-  color: #1a1a1a;
+  background-color: hsl(0, 0%, 82%);
+  color: #111111;
 }
 
 /* ===== Modal ===== */
@@ -1820,6 +1820,16 @@ body {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
+.login-input-field.invalid-field {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2) !important;
+}
+
+.pin-dot-box.invalid-dot {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2) !important;
+}
+
 /* Keypad Grid */
 .keypad-grid {
   display: grid;
@@ -2292,4 +2302,26 @@ body {
 
 .swimlane-frame-header:active {
   cursor: grabbing;
+}
+
+/* Accessibility Skip to Content Link */
+.skip-to-content-link {
+  position: absolute;
+  top: -100px;
+  left: 20px;
+  background: #e65100;
+  color: #ffffff;
+  padding: 10px 20px;
+  border-radius: 0 0 8px 8px;
+  font-weight: 700;
+  font-size: 0.88rem;
+  z-index: 10000;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  transition: top 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  text-decoration: none;
+}
+
+.skip-to-content-link:focus {
+  top: 0;
+  outline: none;
 }

@@ -3,6 +3,7 @@ import { getAuthenticatedUser } from '@/lib/auth';
 import { isSupabaseConfigured, supabaseAdmin } from '@/lib/supabase';
 import { mockNotes, mockShares, mockUsers, saveStore } from '@/lib/mockStore';
 import { Note } from '@/lib/types';
+import { generateUUID } from '@/lib/uuid';
 
 export async function GET(req: Request) {
   try {
@@ -135,7 +136,7 @@ export async function POST(req: Request) {
     const newNoteData = {
       owner_id: user.id,
       board_id: board_id || 'board-default',
-      title: title || '📝 New Note',
+      title: title || 'New Sticky Note',
       content: content || '<p></p>',
       color: color || '#FFEB3B',
       position_x: position_x ?? 100,
@@ -195,7 +196,7 @@ export async function POST(req: Request) {
     } else {
       // Mock store fallback
       const createdNote: Note = {
-        id: `note-${Date.now()}`,
+        id: generateUUID(),
         ...newNoteData,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),

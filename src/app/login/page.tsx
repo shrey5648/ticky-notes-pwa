@@ -11,6 +11,8 @@ export default function LoginPage() {
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [usernameBlur, setUsernameBlur] = useState(false);
+  const [pinBlur, setPinBlur] = useState(false);
   const { login } = useAuth();
   const router = useRouter();
 
@@ -18,7 +20,7 @@ export default function LoginPage() {
   const pinInputRef = useRef<HTMLInputElement>(null);
 
   const handlePinClick = (digit: string) => {
-    if (pin.length < 6) {
+    if (pin.length < 4) {
       setPin((prev) => prev + digit);
     }
     pinInputRef.current?.focus();
@@ -38,7 +40,7 @@ export default function LoginPage() {
       // Capture number keys 0-9 when username input is NOT active
       if (/^[0-9]$/.test(e.key)) {
         if (!isUsernameFocused && activeEl !== pinInputRef.current) {
-          if (pin.length < 6) {
+          if (pin.length < 4) {
             setPin((prev) => prev + e.key);
           }
         }
@@ -59,6 +61,9 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setUsernameBlur(true);
+    setPinBlur(true);
+
     if (!username.trim()) {
       setError('Please enter your username');
       usernameInputRef.current?.focus();
@@ -132,10 +137,16 @@ export default function LoginPage() {
               <input
                 ref={usernameInputRef}
                 type="text"
-                className="login-input-field"
+                className={`login-input-field ${usernameBlur && !username.trim() ? 'invalid-field' : ''}`}
                 placeholder="Enter username"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                onChange={(e) => {
+                  setUsername(e.target.value);
+                  if (e.target.value.trim()) {
+                    setUsernameBlur(false);
+                  }
+                }}
+                onBlur={() => setUsernameBlur(true)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && username.trim()) {
                     e.preventDefault();
@@ -145,6 +156,11 @@ export default function LoginPage() {
                 autoFocus
               />
             </div>
+            {usernameBlur && !username.trim() && (
+              <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', display: 'block', fontWeight: 600 }}>
+                Username is required
+              </span>
+            )}
           </div>
 
           {/* Security PIN Display & Keyboard Input */}
@@ -171,9 +187,16 @@ export default function LoginPage() {
               type="password"
               inputMode="numeric"
               pattern="[0-9]*"
-              maxLength={6}
+              maxLength={4}
               value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              onChange={(e) => {
+                const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                setPin(val);
+                if (val.length === 4) {
+                  setPinBlur(false);
+                }
+              }}
+              onBlur={() => setPinBlur(true)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && pin.length >= 4) {
                   handleSubmit(e);
@@ -195,29 +218,84 @@ export default function LoginPage() {
               style={{ cursor: 'text' }}
               title="Click or focus to type PIN on keyboard"
             >
-              {[0, 1, 2, 3].map((idx) => (
-                <div key={idx} className={`pin-dot-box ${pin.length > idx ? 'active-dot' : ''}`}>
-                  {pin.length > idx ? '•' : ''}
-                </div>
-              ))}
+              {[0, 1, 2, 3].map((idx) => {
+                const isInvalid = pinBlur && pin.length < 4 && pin.length > 0;
+                return (
+                  <div 
+                    key={idx} 
+                    className={`pin-dot-box ${pin.length > idx ? 'active-dot' : ''} ${isInvalid ? 'invalid-dot' : ''}`}
+                  >
+                    {pin.length > idx ? '•' : ''}
+                  </div>
+                );
+              })}
             </div>
+            {pinBlur && pin.length < 4 && pin.length > 0 && (
+              <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '-6px', marginBottom: '10px', textAlign: 'center', display: 'block', fontWeight: 600 }}>
+                PIN must be exactly 4 digits
+              </span>
+            )}
 
             {/* Physical Keypad */}
-            <div className="keypad-grid">
+            <div 
+              className="keypad-grid"
+              onKeyDown={(e) => {
+                const target = e.target as HTMLElement;
+                if (!target.classList.contains('keypad-num-btn') && !target.classList.contains('keypad-action-btn')) return;
+
+                const buttons = Array.from(e.currentTarget.querySelectorAll('.keypad-num-btn, .keypad-action-btn')) as HTMLElement[];
+                const index = buttons.indexOf(target);
+                if (index === -1) return;
+
+                let nextIndex = index;
+                if (e.key === 'ArrowRight') {
+                  e.preventDefault();
+                  nextIndex = (index + 1) % buttons.length;
+                } else if (e.key === 'ArrowLeft') {
+                  e.preventDefault();
+                  nextIndex = (index - 1 + buttons.length) % buttons.length;
+                } else if (e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  nextIndex = index + 3;
+                  if (nextIndex >= buttons.length) {
+                    nextIndex = nextIndex % 3;
+                  }
+                } else if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  nextIndex = index - 3;
+                  if (nextIndex < 0) {
+                    nextIndex = buttons.length - 3 + ((index + 3) % 3);
+                  }
+                }
+                buttons[nextIndex]?.focus();
+              }}
+            >
               {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
                 <button
                   key={digit}
                   type="button"
                   className="keypad-num-btn"
                   onClick={() => handlePinClick(digit)}
+                  aria-label={`Digit ${digit}`}
                 >
                   {digit}
                 </button>
               ))}
-              <button type="button" className="keypad-action-btn" onClick={handlePinBackspace} title="Backspace">
+              <button 
+                type="button" 
+                className="keypad-action-btn" 
+                onClick={handlePinBackspace} 
+                title="Backspace"
+                aria-label="Backspace"
+              >
                 ⌫
               </button>
-              <button type="button" className="keypad-num-btn" onClick={() => handlePinClick('0')}>
+              <button 
+                type="button" 
+                className="keypad-num-btn" 
+                onClick={() => handlePinClick('0')}
+                aria-label="Digit 0"
+              >
                 0
               </button>
               <button
@@ -228,6 +306,7 @@ export default function LoginPage() {
                   pinInputRef.current?.focus();
                 }}
                 title="Reset"
+                aria-label="Reset PIN"
               >
                 C
               </button>

@@ -11,6 +11,7 @@ interface MiniMapRadarProps {
   panY: number;
   zoom: number;
   onSetPan: (panX: number, panY: number) => void;
+  onSetZoom?: (zoom: number) => void;
 }
 
 export const MiniMapRadar: React.FC<MiniMapRadarProps> = ({
@@ -21,8 +22,10 @@ export const MiniMapRadar: React.FC<MiniMapRadarProps> = ({
   panY,
   zoom,
   onSetPan,
+  onSetZoom,
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isLargeSize, setIsLargeSize] = useState(false);
   const minimapAreaRef = useRef<HTMLDivElement>(null);
   const isDraggingViewportRef = useRef(false);
 
@@ -30,9 +33,9 @@ export const MiniMapRadar: React.FC<MiniMapRadarProps> = ({
   const worldWidth = 3200;
   const worldHeight = 2200;
 
-  // Mini-map box dimensions inside CSS container (220px x 118px canvas area)
-  const miniMapWidth = 218;
-  const miniMapHeight = 114;
+  // Mini-map box dimensions (adjustable)
+  const miniMapWidth = isLargeSize ? 320 : 218;
+  const miniMapHeight = isLargeSize ? 180 : 114;
 
   const scaleX = miniMapWidth / worldWidth;
   const scaleY = miniMapHeight / worldHeight;
@@ -88,24 +91,118 @@ export const MiniMapRadar: React.FC<MiniMapRadarProps> = ({
     onSetPan(newPanX, newPanY);
   };
 
+  const handleZoomToFit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (notes.length === 0) {
+      onSetPan(0, 0);
+      if (onSetZoom) onSetZoom(1);
+      return;
+    }
+
+    // Find bounding box of all notes
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+
+    notes.forEach((note) => {
+      minX = Math.min(minX, note.position_x);
+      maxX = Math.max(maxX, note.position_x + 280);
+      minY = Math.min(minY, note.position_y);
+      maxY = Math.max(maxY, note.position_y + 220);
+    });
+
+    const padding = 120;
+    const boundsW = (maxX - minX) + padding * 2;
+    const boundsH = (maxY - minY) + padding * 2;
+
+    const viewportW = typeof window !== 'undefined' ? window.innerWidth : 1200;
+    const viewportH = typeof window !== 'undefined' ? window.innerHeight : 800;
+
+    const zoomX = viewportW / boundsW;
+    const zoomY = viewportH / boundsH;
+    const nextZoom = Math.max(0.15, Math.min(1.2, Math.min(zoomX, zoomY)));
+
+    // Center of bounding box
+    const centerX = minX + (maxX - minX) / 2;
+    const centerY = minY + (maxY - minY) / 2;
+
+    const nextPanX = -(centerX * nextZoom - viewportW / 2);
+    const nextPanY = -(centerY * nextZoom - viewportH / 2);
+
+    if (onSetZoom) {
+      onSetZoom(nextZoom);
+    }
+    onSetPan(nextPanX, nextPanY);
+  };
+
   return (
-    <div className={`minimap-radar-box ${isCollapsed ? 'collapsed' : ''}`}>
+    <div 
+      className={`minimap-radar-box ${isCollapsed ? 'collapsed' : ''} ${isLargeSize ? 'large-size' : ''}`}
+      style={{ width: `${miniMapWidth + 2}px` }}
+    >
       {/* Header Bar */}
-      <div className="minimap-header" onClick={() => setIsCollapsed(!isCollapsed)}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+      <div className="minimap-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span onClick={() => setIsCollapsed(!isCollapsed)} style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', flexGrow: 1 }}>
           <span>🧭</span> Mini-Map ({notes.length})
         </span>
-        <button
-          style={{
-            background: 'none',
-            border: 'none',
-            color: 'var(--ui-text-muted)',
-            fontWeight: 700,
-            cursor: 'pointer',
-          }}
-        >
-          {isCollapsed ? '▲' : '▼'}
-        </button>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {!isCollapsed && (
+            <>
+              <button
+                onClick={handleZoomToFit}
+                title="Zoom to Fit All Notes"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--ui-text-muted)',
+                  fontSize: '0.72rem',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  padding: '2px 4px',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                🔎 Fit
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsLargeSize(!isLargeSize);
+                }}
+                title={isLargeSize ? "Make Map Smaller" : "Make Map Larger"}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--ui-text-muted)',
+                  fontSize: '0.72rem',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  padding: '2px 4px',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                ↕ Size
+              </button>
+            </>
+          )}
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--ui-text-muted)',
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            {isCollapsed ? '▲' : '▼'}
+          </button>
+        </div>
       </div>
 
       {/* Mini-Map Render Area */}
@@ -114,6 +211,7 @@ export const MiniMapRadar: React.FC<MiniMapRadarProps> = ({
           ref={minimapAreaRef}
           className="minimap-canvas-area"
           onPointerDown={handlePointerDown}
+          style={{ height: `${miniMapHeight}px`, width: `${miniMapWidth}px` }}
         >
           {/* Render Mini Swimlane Frames */}
           {frames.map((frame) => (

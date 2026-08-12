@@ -15,6 +15,7 @@ import Link from '@tiptap/extension-link';
 import Subscript from '@tiptap/extension-subscript';
 import Superscript from '@tiptap/extension-superscript';
 import { Extension, Node, mergeAttributes } from '@tiptap/core';
+import { uploadImageFile } from '@/lib/upload';
 
 // Custom TipTap Extension for Image Node
 const TiptapImageNode = Node.create({
@@ -340,24 +341,25 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     setTags(tags.filter((t) => t !== tagToRemove));
   };
 
-  // Local Device Image Selection (FileReader -> Base64 Data URL)
-  const handleLocalImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+
+
+  // Local Device Image Selection (POST Upload API -> Public URL)
+  const handleLocalImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !editor) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64 = event.target?.result as string;
-      if (base64) {
-        editor
-          .chain()
-          .focus()
-          .insertContent(`<img src="${base64}" alt="${file.name}" style="max-width:100%; border-radius:8px; margin:8px 0;" />`)
-          .run();
-        setShowImageDialog(false);
-      }
-    };
-    reader.readAsDataURL(file);
+    try {
+      const url = await uploadImageFile(file);
+      editor
+        .chain()
+        .focus()
+        .insertContent(`<img src="${url}" alt="${file.name}" style="max-width:100%; border-radius:8px; margin:8px 0;" />`)
+        .run();
+      setShowImageDialog(false);
+    } catch (err: any) {
+      console.error('Image upload failed:', err);
+      alert(err.message || 'Failed to upload image.');
+    }
   };
 
   // URL Image Insertion
@@ -455,7 +457,6 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
         {/* Header Title Input */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '1.1rem' }}>📝</span>
             <input
               type="text"
               className="editor-title-input"

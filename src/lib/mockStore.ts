@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import bcrypt from 'bcryptjs';
 import { User, Note, NoteShare, Board, NoteConnection, NoteFrame, PublicShareToken, NoteComment, WorkspaceActivity } from './types';
 
 const INITIAL_USERS: User[] = [
@@ -13,8 +14,9 @@ const INITIAL_USERS: User[] = [
   },
 ];
 
+const DEFAULT_PIN = process.env.INITIAL_ADMIN_PIN || '1234';
 const INITIAL_HASHES: Record<string, string> = {
-  'user-demo-1': '$2b$10$B/M2SKxNTWL5afegjl/nnuDLkejEsAJvzzll1gJVRU7pluYNHT7Oq', // PIN: 1234
+  'user-demo-1': bcrypt.hashSync(DEFAULT_PIN, 10),
 };
 
 const INITIAL_BOARDS: Board[] = [
