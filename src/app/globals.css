@@ -325,9 +325,10 @@ body {
 /* ===== Sticky Note Card ===== */
 .sticky-note-card {
   position: absolute;
-  width: 280px;
+  width: 290px;
   min-height: 240px;
   max-height: 380px;
+
   padding: 20px 18px 14px 18px;
   border-radius: 3px 3px 16px 3px;
   box-shadow: var(--shadow-note);
@@ -427,9 +428,9 @@ body {
 
 .note-title {
   font-family: var(--font-note);
-  font-size: 1.45rem;
+  font-size: 20px;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.25;
   color: #111;
   word-break: break-word;
   flex: 1;
@@ -438,13 +439,14 @@ body {
 /* Note Body */
 .note-body {
   font-family: var(--font-note);
-  font-size: 1.25rem;
-  line-height: 1.35;
+  font-size: 18px;
+  line-height: 1.4;
   color: #222;
   flex: 1;
   overflow-y: auto;
   word-break: break-word;
 }
+
 
 .note-body p {
   margin-bottom: 0.4em;
@@ -964,7 +966,10 @@ body {
   outline: none;
   min-height: 180px;
   user-select: text;
+  font-size: 18px;
+  line-height: 1.5;
 }
+
 
 .editor-content-area .tiptap p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);

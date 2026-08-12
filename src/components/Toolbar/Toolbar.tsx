@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { User, Note, Board } from '@/lib/types';
+import { PresenceBar } from './PresenceBar';
+import { UserPresence } from '@/lib/types';
 import {
   Plus,
   Search,
@@ -33,12 +35,14 @@ import {
   Image as ImageIcon,
   Printer,
   FolderPlus,
+  Activity,
 } from 'lucide-react';
 
 interface ToolbarProps {
   user: User | null;
   notes?: Note[];
   workspaceUsers?: User[];
+  presences?: UserPresence[];
   boards?: Board[];
   currentBoardId?: string;
   onSelectBoard?: (boardId: string) => void;
@@ -60,6 +64,7 @@ interface ToolbarProps {
   onToggleArchived: () => void;
   deletedCount?: number;
   onOpenTrashBin?: () => void;
+  onOpenActivityFeed?: () => void;
   onAutoArrange?: () => void;
   onExportJSON?: () => void;
   onExportMarkdown?: () => void;
@@ -76,6 +81,7 @@ interface ToolbarProps {
   onOpenUserManagement: () => void;
   onLogout: () => void;
 }
+
 
 const COLOR_PRESETS = [
   { name: 'Yellow', value: '#FFEB3B' },
@@ -97,6 +103,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   user,
   notes = [],
   workspaceUsers = [],
+  presences = [],
   boards = [],
   currentBoardId = 'board-default',
   onSelectBoard,
@@ -118,6 +125,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onToggleArchived,
   deletedCount = 0,
   onOpenTrashBin,
+  onOpenActivityFeed,
   onAutoArrange,
   onExportJSON,
   onExportMarkdown,
@@ -134,6 +142,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onOpenUserManagement,
   onLogout,
 }) => {
+
   const [isCollapsed, setIsCollapsed] = useState(true);
   const [showNotesPicker, setShowNotesPicker] = useState(false);
   const [showBoardDropdown, setShowBoardDropdown] = useState(false);
@@ -460,10 +469,26 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         )}
       </div>
 
+      {/* Online Presence Bar */}
+      <PresenceBar currentUser={user} presences={presences} />
+
+      {/* Activity Log Button */}
+      {onOpenActivityFeed && (
+        <button
+          className="btn-icon"
+          onClick={onOpenActivityFeed}
+          title="Workspace Activity Log"
+          style={{ width: '32px', height: '32px', color: '#10b981' }}
+        >
+          <Activity size={15} />
+        </button>
+      )}
+
       {/* Create Note Button */}
       <button className="btn-primary" onClick={onCreateNote} title="Create new sticky note" id="btn-create-note" style={{ height: '32px', padding: '0 14px', fontSize: '0.82rem' }}>
         <Plus size={15} /> New Note
       </button>
+
 
       {/* Auto-Arrange Grid Button */}
       {onAutoArrange && (

@@ -162,7 +162,8 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   const [tagInput, setTagInput] = useState('');
   const [styleVariant, setStyleVariant] = useState<'default' | 'kraft' | 'grid' | 'lined' | 'neon'>('default');
   const [fontFamily, setFontFamily] = useState<'poppins' | 'roboto' | 'handwriting'>('poppins');
-  const [currentFontSizeIdx, setCurrentFontSizeIdx] = useState(2); // 16px default
+  const [currentFontSizeIdx, setCurrentFontSizeIdx] = useState(3); // 18px default
+
 
   const [showLinkDialog, setShowLinkDialog] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
@@ -464,16 +465,17 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
               disabled={isReadOnly}
               id="input-note-title"
               style={{
-                padding: '4px 10px',
+                padding: '6px 12px',
                 border: '1px solid var(--ui-border)',
-                borderRadius: '6px',
-                fontSize: '0.92rem',
-                fontWeight: 600,
-                width: '200px',
+                borderRadius: '8px',
+                fontSize: '20px',
+                fontWeight: 700,
+                width: '260px',
                 background: 'var(--ui-bg)',
                 color: 'var(--ui-text)',
                 outline: 'none',
               }}
+
             />
             {/* Real-time Auto-Save Badge */}
             {!isReadOnly && (

@@ -57,6 +57,9 @@ export interface Note {
   due_date?: string | null;
   style_variant?: 'default' | 'kraft' | 'grid' | 'lined' | 'neon';
   font_family?: 'sans' | 'handwriting' | 'mono';
+  pin_code?: string;
+  sticker?: 'star' | 'urgent' | 'fire' | 'check' | 'secret' | 'idea' | 'pin' | 'goal' | string;
+  comments_count?: number;
   created_at: string;
   updated_at: string;
   // Metadata for shared or admin views
@@ -86,6 +89,55 @@ export interface NoteShare {
   };
 }
 
+export interface PublicShareToken {
+  id: string;
+  token: string;
+  entity_type: 'note' | 'board';
+  entity_id: string;
+  shared_by: string;
+  password_pin?: string;
+  expires_at?: string | null;
+  created_at: string;
+  shared_by_user?: {
+    username: string;
+    display_name: string;
+  };
+}
+
+export interface NoteComment {
+  id: string;
+  note_id: string;
+  user_id: string;
+  username: string;
+  display_name: string;
+  comment_text: string;
+  mentions?: string[];
+  created_at: string;
+}
+
+export interface WorkspaceActivity {
+  id: string;
+  user_id: string;
+  username: string;
+  display_name: string;
+  action_type: 'create' | 'update' | 'delete' | 'comment' | 'share' | 'pin' | 'move';
+  entity_type: 'note' | 'board' | 'comment' | 'share';
+  entity_id: string;
+  description: string;
+  created_at: string;
+}
+
+export interface UserPresence {
+  user_id: string;
+  username: string;
+  display_name: string;
+  color: string;
+  cursor_x: number;
+  cursor_y: number;
+  active_board_id: string;
+  last_active: number;
+}
+
 export interface SyncItem {
   id?: number;
   action: 'create' | 'update' | 'delete';
@@ -100,3 +152,4 @@ export interface JWTPayload {
   display_name: string;
   role?: 'admin' | 'user';
 }
+

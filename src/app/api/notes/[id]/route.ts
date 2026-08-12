@@ -83,6 +83,7 @@ export async function PUT(
         if (body.position_y !== undefined) corePayload.position_y = body.position_y;
         if (body.is_pinned !== undefined) corePayload.is_pinned = body.is_pinned;
         if (body.is_archived !== undefined) corePayload.is_archived = body.is_archived;
+        if (body.is_locked !== undefined) corePayload.is_locked = body.is_locked;
         if (body.z_index !== undefined) corePayload.z_index = body.z_index;
 
         const { data: fallbackUpdated, error: fallbackErr } = await supabaseAdmin

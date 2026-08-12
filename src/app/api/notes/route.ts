@@ -171,6 +171,7 @@ export async function POST(req: Request) {
           position_y: newNoteData.position_y,
           is_pinned: newNoteData.is_pinned,
           is_archived: newNoteData.is_archived,
+          is_locked: newNoteData.is_locked,
           z_index: newNoteData.z_index,
         };
 

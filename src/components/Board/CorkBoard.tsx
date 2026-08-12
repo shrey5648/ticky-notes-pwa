@@ -2,13 +2,14 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { Note, NoteConnection, NoteFrame } from '@/lib/types';
+import { Note, NoteConnection, NoteFrame, UserPresence } from '@/lib/types';
 import { StickyNote } from '../Notes/StickyNote';
 import { BatchActionBar } from '../Toolbar/BatchActionBar';
 import { ConnectionLinesOverlay } from './ConnectionLinesOverlay';
 import { ConnectionModal } from './ConnectionModal';
 import { SwimlaneFrame } from './SwimlaneFrame';
 import { MiniMapRadar } from './MiniMapRadar';
+import { LiveCursorsOverlay } from './LiveCursorsOverlay';
 import { ZoomIn, ZoomOut, Maximize2, Move, Link2, LayoutGrid } from 'lucide-react';
 
 interface CorkBoardProps {
@@ -17,6 +18,7 @@ interface CorkBoardProps {
   themeVariant?: 'cork' | 'dark_leather' | 'blueprint' | 'grid_paper' | 'vintage_pastel' | 'glassmorphism';
   connections?: NoteConnection[];
   frames?: NoteFrame[];
+  presences?: UserPresence[];
   onSelectNote: (id: string, isShift: boolean) => void;
   onClearSelection: () => void;
   onSetSelection: (ids: string[]) => void;
@@ -24,19 +26,24 @@ interface CorkBoardProps {
   onBatchUpdatePositions: (updates: { id: string; newX: number; newY: number }[]) => void;
   onEditNote: (note: Note) => void;
   onDeleteNote: (id: string) => void;
-  onBatchDeleteNotes: () => void;
+  onBatchDeleteNotes?: () => void;
+
   onPinToggle: (id: string, isPinned: boolean) => void;
-  onBatchPinToggle: (isPinned: boolean) => void;
+  onBatchPinToggle?: (isPinned: boolean) => void;
   onLockToggle?: (id: string, isLocked: boolean) => void;
   onBatchLockToggle?: (isLocked: boolean) => void;
   onArchiveToggle: (id: string, isArchived: boolean) => void;
   onShareNote: (note: Note) => void;
   onBringToFront: (id: string) => void;
-  onBatchRecolor: (color: string) => void;
-  onBatchTag: (tag: string) => void;
-  onBatchAlign: (mode: 'row' | 'column' | 'grid') => void;
+  onBatchRecolor?: (color: string) => void;
+  onBatchTag?: (tag: string) => void;
+  onBatchAlign?: (mode: 'row' | 'column' | 'grid') => void;
+
   onCreateNoteWithImage?: (x: number, y: number, base64Image: string) => void;
   onAttachImage?: (id: string, base64Image: string) => void;
+  onOpenComments?: (note: Note) => void;
+  onStickerChange?: (id: string, sticker: string | null) => void;
+
   // Phase 3 Handlers
   onCreateConnection?: (fromId: string, toId: string) => void;
   onUpdateConnection?: (id: string, updates: Partial<NoteConnection>) => void;
@@ -68,6 +75,7 @@ export const CorkBoard: React.FC<CorkBoardProps> = ({
   themeVariant = 'cork',
   connections = [],
   frames = [],
+  presences = [],
   onSelectNote,
   onClearSelection,
   onSetSelection,
@@ -88,6 +96,8 @@ export const CorkBoard: React.FC<CorkBoardProps> = ({
   onBatchAlign,
   onCreateNoteWithImage,
   onAttachImage,
+  onOpenComments,
+  onStickerChange,
   onCreateConnection,
   onUpdateConnection,
   onDeleteConnection,
@@ -95,6 +105,7 @@ export const CorkBoard: React.FC<CorkBoardProps> = ({
   onUpdateFrame,
   onDeleteFrame,
 }) => {
+
   // Infinite Canvas Pan & Zoom State
   const [zoom, setZoom] = useState<number>(1);
   const [panX, setPanX] = useState<number>(0);
@@ -426,6 +437,9 @@ export const CorkBoard: React.FC<CorkBoardProps> = ({
             />
           ))}
 
+          {/* Live Collaborator Cursors Overlay */}
+          <LiveCursorsOverlay presences={presences} />
+
           {/* Sticky Notes List */}
           {notes.length === 0 ? (
             <div className="empty-board">
@@ -450,22 +464,26 @@ export const CorkBoard: React.FC<CorkBoardProps> = ({
                 onBringToFront={onBringToFront}
                 onAttachImage={onAttachImage}
                 onStartConnect={handleStartConnect}
+                onOpenComments={onOpenComments}
+                onStickerChange={onStickerChange}
               />
             ))
           )}
+
         </div>
 
         {/* Floating Batch Action Bar */}
         <BatchActionBar
           selectedCount={selectedNoteIds.length}
           onClearSelection={onClearSelection}
-          onBatchRecolor={onBatchRecolor}
-          onBatchTag={onBatchTag}
-          onBatchPinToggle={onBatchPinToggle}
+          onBatchRecolor={onBatchRecolor || (() => {})}
+          onBatchTag={onBatchTag || (() => {})}
+          onBatchPinToggle={onBatchPinToggle || (() => {})}
           onBatchLockToggle={onBatchLockToggle ? () => onBatchLockToggle(true) : () => {}}
-          onBatchAlign={onBatchAlign}
-          onBatchDelete={onBatchDeleteNotes}
+          onBatchAlign={onBatchAlign || (() => {})}
+          onBatchDelete={onBatchDeleteNotes || (() => {})}
         />
+
 
         {/* Floating Zoom & Canvas Controls Bar */}
         <div className="zoom-controls-bar">

@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { User, Note, NoteShare, Board, NoteConnection, NoteFrame } from './types';
+import { User, Note, NoteShare, Board, NoteConnection, NoteFrame, PublicShareToken, NoteComment, WorkspaceActivity } from './types';
 
 const INITIAL_USERS: User[] = [
   {
@@ -31,6 +31,21 @@ const INITIAL_BOARDS: Board[] = [
 const INITIAL_NOTES: Note[] = [];
 const INITIAL_CONNECTIONS: NoteConnection[] = [];
 const INITIAL_FRAMES: NoteFrame[] = [];
+const INITIAL_PUBLIC_SHARES: PublicShareToken[] = [];
+const INITIAL_COMMENTS: NoteComment[] = [];
+const INITIAL_ACTIVITIES: WorkspaceActivity[] = [
+  {
+    id: 'act-init-1',
+    user_id: 'user-demo-1',
+    username: 'Shreyas',
+    display_name: 'Shreyas Admin',
+    action_type: 'create',
+    entity_type: 'board',
+    entity_id: 'board-default',
+    description: 'Created Main Workspace Board',
+    created_at: new Date().toISOString(),
+  },
+];
 
 function ensureDirSync(dirPath: string): boolean {
   try {
@@ -78,6 +93,9 @@ function loadStore() {
         shares: Array.isArray(data.shares) ? data.shares : [],
         connections: Array.isArray(data.connections) ? data.connections : INITIAL_CONNECTIONS,
         frames: Array.isArray(data.frames) ? data.frames : INITIAL_FRAMES,
+        publicShares: Array.isArray(data.publicShares) ? data.publicShares : INITIAL_PUBLIC_SHARES,
+        comments: Array.isArray(data.comments) ? data.comments : INITIAL_COMMENTS,
+        activities: Array.isArray(data.activities) && data.activities.length > 0 ? data.activities : INITIAL_ACTIVITIES,
       };
     }
   } catch (err) {
@@ -92,6 +110,9 @@ function loadStore() {
     shares: [],
     connections: INITIAL_CONNECTIONS,
     frames: INITIAL_FRAMES,
+    publicShares: INITIAL_PUBLIC_SHARES,
+    comments: INITIAL_COMMENTS,
+    activities: INITIAL_ACTIVITIES,
   };
 
   try {
@@ -113,6 +134,9 @@ export const mockNotes: Note[] = loaded.notes;
 export const mockShares: NoteShare[] = loaded.shares;
 export const mockConnections: NoteConnection[] = loaded.connections;
 export const mockFrames: NoteFrame[] = loaded.frames;
+export const mockPublicShares: PublicShareToken[] = loaded.publicShares;
+export const mockComments: NoteComment[] = loaded.comments;
+export const mockActivities: WorkspaceActivity[] = loaded.activities;
 
 export function saveStore() {
   try {
@@ -126,6 +150,9 @@ export function saveStore() {
         shares: mockShares,
         connections: mockConnections,
         frames: mockFrames,
+        publicShares: mockPublicShares,
+        comments: mockComments,
+        activities: mockActivities,
       };
       fs.writeFileSync(dataFile, JSON.stringify(data, null, 2), 'utf-8');
     }
@@ -133,4 +160,5 @@ export function saveStore() {
     console.error('[mockStore] Error writing store to disk:', err);
   }
 }
+
 

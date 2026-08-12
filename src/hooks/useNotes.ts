@@ -9,8 +9,52 @@ import {
   processOfflineQueue,
 } from '@/lib/db';
 
+function getLockedIdsFromStorage(): Set<string> {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const raw = localStorage.getItem('locked-note-ids');
+    if (raw) return new Set(JSON.parse(raw));
+  } catch (e) {}
+  return new Set();
+}
+
+function saveLockedIdsToStorage(lockedIds: Set<string>) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem('locked-note-ids', JSON.stringify(Array.from(lockedIds)));
+  } catch (e) {}
+}
+
+function mergeLockStates(notesList: Note[]): Note[] {
+  const lockedIds = getLockedIdsFromStorage();
+  return notesList.map((n) => {
+    const isLocked = Boolean(n.is_locked || lockedIds.has(n.id));
+    if (isLocked) lockedIds.add(n.id);
+    return { ...n, is_locked: isLocked };
+  });
+}
+
+function getCachedNotesFromLocalStorage(): Note[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem('cached-notes-v3');
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return [];
+}
+
+function saveNotesToLocalStorage(notesList: Note[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem('cached-notes-v3', JSON.stringify(notesList));
+  } catch (e) {}
+}
+
 export function useNotes(userId?: string) {
-  const [notes, setNotes] = useState<Note[]>([]);
+  const [notes, setNotes] = useState<Note[]>(() => {
+    const initial = getCachedNotesFromLocalStorage();
+    return mergeLockStates(initial);
+  });
   const [loading, setLoading] = useState<boolean>(true);
   const [isOnline, setIsOnline] = useState<boolean>(true);
   const [syncing, setSyncing] = useState<boolean>(false);
@@ -76,9 +120,22 @@ export function useNotes(userId?: string) {
   const fetchNotes = useCallback(async () => {
     setLoading(true);
     // Step 1: Load from local IndexedDB instantly
-    const cached = await getLocalNotes();
-    if (cached.length > 0) {
-      setNotes(cached);
+    const cachedIndexedDB = await getLocalNotes();
+    const localStoreNotes = getCachedNotesFromLocalStorage();
+
+    const noteMap = new Map<string, Note>();
+    localStoreNotes.forEach((n) => noteMap.set(n.id, n));
+    cachedIndexedDB.forEach((n) => {
+      const existing = noteMap.get(n.id);
+      if (!existing || new Date(n.updated_at).getTime() > new Date(existing.updated_at).getTime()) {
+        noteMap.set(n.id, n);
+      }
+    });
+
+    const localMerged = mergeLockStates(Array.from(noteMap.values()));
+    if (localMerged.length > 0) {
+      setNotes(localMerged);
+      saveNotesToLocalStorage(localMerged);
     }
 
     // Step 2: Fetch remote API if online
@@ -87,9 +144,17 @@ export function useNotes(userId?: string) {
         const res = await fetch('/api/notes');
         if (res.ok) {
           const data = await res.json();
-          if (data.notes) {
-            setNotes(data.notes);
-            await saveLocalNotes(data.notes);
+          if (data.notes && Array.isArray(data.notes)) {
+            data.notes.forEach((remoteNote: Note) => {
+              const localNote = noteMap.get(remoteNote.id);
+              if (!localNote || new Date(remoteNote.updated_at).getTime() >= new Date(localNote.updated_at).getTime()) {
+                noteMap.set(remoteNote.id, remoteNote);
+              }
+            });
+            const finalMerged = mergeLockStates(Array.from(noteMap.values()));
+            setNotes(finalMerged);
+            saveNotesToLocalStorage(finalMerged);
+            await saveLocalNotes(finalMerged);
           }
         }
       } catch (err) {
@@ -124,8 +189,12 @@ export function useNotes(userId?: string) {
       permission: 'owner',
     };
 
-    // Optimistic UI update
-    setNotes((prev) => [newNote, ...prev]);
+    // Optimistic UI & LocalStorage update
+    setNotes((prev) => {
+      const updated = [newNote, ...prev];
+      saveNotesToLocalStorage(updated);
+      return updated;
+    });
     await saveSingleLocalNote(newNote);
 
     if (navigator.onLine) {
@@ -138,7 +207,11 @@ export function useNotes(userId?: string) {
         if (res.ok) {
           const data = await res.json();
           if (data.note) {
-            setNotes((prev) => prev.map((n) => (n.id === tempId ? data.note : n)));
+            setNotes((prev) => {
+              const updated = prev.map((n) => (n.id === tempId ? data.note : n));
+              saveNotesToLocalStorage(updated);
+              return updated;
+            });
             await deleteLocalNote(tempId);
             await saveSingleLocalNote(data.note);
             return data.note;
@@ -161,15 +234,27 @@ export function useNotes(userId?: string) {
   const updateNote = async (id: string, updates: Partial<Note>) => {
     let updatedNoteObject: Note | null = null;
 
-    setNotes((prev) =>
-      prev.map((n) => {
+    if (updates.is_locked !== undefined) {
+      const lockedIds = getLockedIdsFromStorage();
+      if (updates.is_locked) {
+        lockedIds.add(id);
+      } else {
+        lockedIds.delete(id);
+      }
+      saveLockedIdsToStorage(lockedIds);
+    }
+
+    setNotes((prev) => {
+      const updatedList = prev.map((n) => {
         if (n.id === id) {
           updatedNoteObject = { ...n, ...updates, updated_at: new Date().toISOString() };
           return updatedNoteObject;
         }
         return n;
-      })
-    );
+      });
+      saveNotesToLocalStorage(updatedList);
+      return updatedList;
+    });
 
     if (updatedNoteObject) {
       await saveSingleLocalNote(updatedNoteObject);
@@ -193,7 +278,11 @@ export function useNotes(userId?: string) {
 
   // Delete Note (Optimistic)
   const deleteNote = async (id: string) => {
-    setNotes((prev) => prev.filter((n) => n.id !== id));
+    setNotes((prev) => {
+      const updated = prev.filter((n) => n.id !== id);
+      saveNotesToLocalStorage(updated);
+      return updated;
+    });
     await deleteLocalNote(id);
 
     if (navigator.onLine) {

@@ -4,6 +4,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useNotes } from '@/hooks/useNotes';
 import { useTheme } from '@/hooks/useTheme';
+import { useRealtimePresence } from '@/hooks/useRealtimePresence';
 import { CorkBoard, autoArrangeNotes } from '@/components/Board/CorkBoard';
 import { Toolbar } from '@/components/Toolbar/Toolbar';
 import { NoteEditor } from '@/components/Notes/NoteEditor';
@@ -12,6 +13,9 @@ import { UserManagementModal } from '@/components/Users/UserManagementModal';
 import { TrashBinModal } from '@/components/Modals/TrashBinModal';
 import { CommandPaletteModal } from '@/components/Modals/CommandPaletteModal';
 import { NotificationAlarmBanner, AlarmItem } from '@/components/Modals/NotificationAlarmBanner';
+import { NoteCommentsDrawer } from '@/components/Notes/NoteCommentsDrawer';
+import { ActivityFeedModal } from '@/components/Modals/ActivityFeedModal';
+import { PWAInstallBanner } from '@/components/PWA/PWAInstallBanner';
 import { triggerNativeNotification, requestNotificationPermission } from '@/lib/notifications';
 import { Note, User, Board, NoteConnection, NoteFrame } from '@/lib/types';
 import {
@@ -42,7 +46,22 @@ export default function StickyNotesAppPage() {
   const [boards, setBoards] = useState<Board[]>([
     { id: 'board-default', name: 'Main Board', owner_id: user?.id || 'admin', created_at: new Date().toISOString() },
   ]);
-  const [currentBoardId, setCurrentBoardId] = useState<string>('board-default');
+  const [currentBoardId, setCurrentBoardId] = useState<string>(() => {
+
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('active-board-id');
+      if (saved) return saved;
+    }
+    return 'board-default';
+  });
+
+  const handleSelectBoard = (boardId: string) => {
+    setCurrentBoardId(boardId);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('active-board-id', boardId);
+    }
+  };
+
 
   // Phase 3 Canvas State
   const [connections, setConnections] = useState<NoteConnection[]>([]);
@@ -64,12 +83,36 @@ export default function StickyNotesAppPage() {
   // Workspace Users state
   const [workspaceUsers, setWorkspaceUsers] = useState<User[]>([]);
 
+  const handleRemoteNoteMove = useCallback((noteId: string, x: number, y: number) => {
+    updateNote(noteId, { position_x: x, position_y: y });
+  }, [updateNote]);
+
+  // Phase 4 Real-time Presence
+  const { activePresences, broadcastCursorMove, broadcastNoteMove } = useRealtimePresence({
+    currentUser: user,
+    activeBoardId: currentBoardId,
+    onRemoteNoteMove: handleRemoteNoteMove,
+  });
+
+  // Track mouse movement on window for live cursor broadcast
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      broadcastCursorMove(e.clientX, e.clientY);
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, [broadcastCursorMove]);
+
   // Modals state
   const [editingNote, setEditingNote] = useState<Note | null>(null);
   const [sharingNote, setSharingNote] = useState<Note | null>(null);
+  const [commentingNote, setCommentingNote] = useState<Note | null>(null);
+  const [showActivityFeed, setShowActivityFeed] = useState(false);
   const [showUserManagement, setShowUserManagement] = useState(false);
   const [showTrashBin, setShowTrashBin] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
+
+
 
   // Due Date Alarm State
   const [activeAlarms, setActiveAlarms] = useState<AlarmItem[]>([]);
@@ -186,34 +229,99 @@ export default function StickyNotesAppPage() {
   // Phase 3 Connections & Frames Fetch & Persistence Effect
   useEffect(() => {
     if (user) {
-      getLocalConnections().then((localConns) => {
-        if (localConns.length > 0) setConnections(localConns);
-      });
-      getLocalFrames().then((localFrs) => {
-        if (localFrs.length > 0) setFrames(localFrs);
-      });
+      // 1. Load from localStorage immediately for instant offline rendering
+      let localStoredConns: NoteConnection[] = [];
+      let localStoredFrames: NoteFrame[] = [];
+      if (typeof window !== 'undefined') {
+        try {
+          const rawConns = localStorage.getItem(`connections-${currentBoardId}`) || localStorage.getItem('connections-global');
+          if (rawConns) localStoredConns = JSON.parse(rawConns);
+          const rawFrames = localStorage.getItem(`frames-${currentBoardId}`) || localStorage.getItem('frames-global');
+          if (rawFrames) localStoredFrames = JSON.parse(rawFrames);
+        } catch (e) {}
+      }
 
-      fetch(`/api/connections?board_id=${currentBoardId}`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.connections) {
-            setConnections(data.connections);
-            saveLocalConnections(data.connections);
-          }
-        })
-        .catch((err) => console.error('Failed to fetch connections:', err));
+      // 2. Load from IndexedDB
+      Promise.all([getLocalConnections(), getLocalFrames()]).then(([dbConns, dbFrames]) => {
+        const connMap = new Map<string, NoteConnection>();
+        localStoredConns.forEach((c) => connMap.set(c.id, c));
+        dbConns.forEach((c) => {
+          if (!c.board_id || c.board_id === currentBoardId) connMap.set(c.id, c);
+        });
+        const initialConns = Array.from(connMap.values());
+        if (initialConns.length > 0) setConnections(initialConns);
 
-      fetch(`/api/frames?board_id=${currentBoardId}`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.frames) {
-            setFrames(data.frames);
-            saveLocalFrames(data.frames);
-          }
-        })
-        .catch((err) => console.error('Failed to fetch frames:', err));
+        const frameMap = new Map<string, NoteFrame>();
+        localStoredFrames.forEach((f) => frameMap.set(f.id, f));
+        dbFrames.forEach((f) => {
+          if (!f.board_id || f.board_id === currentBoardId) frameMap.set(f.id, f);
+        });
+        const initialFrames = Array.from(frameMap.values());
+        if (initialFrames.length > 0) setFrames(initialFrames);
+
+        // 3. Fetch remote API if online and merge (never overwrite non-empty local state with empty API array)
+        fetch(`/api/connections?board_id=${currentBoardId}`)
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.connections && Array.isArray(data.connections)) {
+              data.connections.forEach((c: NoteConnection) => connMap.set(c.id, c));
+              const mergedConns = Array.from(connMap.values());
+              setConnections(mergedConns);
+              saveLocalConnections(mergedConns);
+              if (typeof window !== 'undefined') {
+                localStorage.setItem(`connections-${currentBoardId}`, JSON.stringify(mergedConns));
+              }
+            }
+          })
+          .catch((err) => console.error('Failed to fetch connections:', err));
+
+        fetch(`/api/frames?board_id=${currentBoardId}`)
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.frames && Array.isArray(data.frames)) {
+              data.frames.forEach((f: NoteFrame) => frameMap.set(f.id, f));
+              const mergedFrames = Array.from(frameMap.values());
+              setFrames(mergedFrames);
+              saveLocalFrames(mergedFrames);
+              if (typeof window !== 'undefined') {
+                localStorage.setItem(`frames-${currentBoardId}`, JSON.stringify(mergedFrames));
+              }
+            }
+          })
+          .catch((err) => console.error('Failed to fetch frames:', err));
+      });
     }
   }, [user, currentBoardId]);
+
+  // Load saved canvas theme variant from localStorage on mount & when board changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedBoardTheme = localStorage.getItem(`canvas-theme-${currentBoardId}`);
+      const savedGlobalTheme = localStorage.getItem('canvas-theme-global');
+      const boardObj = boards.find((b) => b.id === currentBoardId);
+      const activeVariant = (savedBoardTheme || boardObj?.theme_variant || savedGlobalTheme || 'cork') as any;
+      setThemeVariant(activeVariant);
+    }
+  }, [currentBoardId, boards]);
+
+  const handleSelectThemeVariant = (variant: 'cork' | 'dark_leather' | 'blueprint' | 'grid_paper' | 'vintage_pastel' | 'glassmorphism') => {
+    setThemeVariant(variant);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`canvas-theme-${currentBoardId}`, variant);
+      localStorage.setItem('canvas-theme-global', variant);
+    }
+    setBoards((prev) =>
+      prev.map((b) => (b.id === currentBoardId ? { ...b, theme_variant: variant } : b))
+    );
+    const currBoard = boards.find((b) => b.id === currentBoardId);
+    if (currBoard) {
+      fetch('/api/boards', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: currentBoardId, name: currBoard.name, theme_variant: variant }),
+      }).catch((err) => console.error('Failed to update board theme:', err));
+    }
+  };
 
   // Phase 3 Handlers for Connections & Frames
   const handleCreateConnection = async (from_note_id: string, to_note_id: string) => {
@@ -227,7 +335,14 @@ export default function StickyNotesAppPage() {
       arrow_type: 'end',
       created_at: new Date().toISOString(),
     };
-    setConnections((prev) => [...prev, newConn]);
+    setConnections((prev) => {
+      const updated = [...prev, newConn];
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`connections-${currentBoardId}`, JSON.stringify(updated));
+        localStorage.setItem('connections-global', JSON.stringify(updated));
+      }
+      return updated;
+    });
     await saveSingleLocalConnection(newConn);
     fetch('/api/connections', {
       method: 'POST',
@@ -237,7 +352,14 @@ export default function StickyNotesAppPage() {
   };
 
   const handleUpdateConnection = async (id: string, updates: Partial<NoteConnection>) => {
-    setConnections((prev) => prev.map((c) => (c.id === id ? { ...c, ...updates } : c)));
+    setConnections((prev) => {
+      const updated = prev.map((c) => (c.id === id ? { ...c, ...updates } : c));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`connections-${currentBoardId}`, JSON.stringify(updated));
+        localStorage.setItem('connections-global', JSON.stringify(updated));
+      }
+      return updated;
+    });
     const conn = connections.find((c) => c.id === id);
     if (conn) {
       await saveSingleLocalConnection({ ...conn, ...updates });
@@ -250,7 +372,14 @@ export default function StickyNotesAppPage() {
   };
 
   const handleDeleteConnection = async (id: string) => {
-    setConnections((prev) => prev.filter((c) => c.id !== id));
+    setConnections((prev) => {
+      const updated = prev.filter((c) => c.id !== id);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`connections-${currentBoardId}`, JSON.stringify(updated));
+        localStorage.setItem('connections-global', JSON.stringify(updated));
+      }
+      return updated;
+    });
     await deleteLocalConnection(id);
     fetch(`/api/connections?id=${id}`, { method: 'DELETE' }).catch((err) =>
       console.error('Failed to delete connection:', err)
@@ -269,7 +398,14 @@ export default function StickyNotesAppPage() {
       color: '#3b82f6',
       created_at: new Date().toISOString(),
     };
-    setFrames((prev) => [...prev, newFrame]);
+    setFrames((prev) => {
+      const updated = [...prev, newFrame];
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`frames-${currentBoardId}`, JSON.stringify(updated));
+        localStorage.setItem('frames-global', JSON.stringify(updated));
+      }
+      return updated;
+    });
     await saveSingleLocalFrame(newFrame);
     fetch('/api/frames', {
       method: 'POST',
@@ -279,7 +415,14 @@ export default function StickyNotesAppPage() {
   };
 
   const handleUpdateFrame = async (id: string, updates: Partial<NoteFrame>) => {
-    setFrames((prev) => prev.map((f) => (f.id === id ? { ...f, ...updates } : f)));
+    setFrames((prev) => {
+      const updated = prev.map((f) => (f.id === id ? { ...f, ...updates } : f));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`frames-${currentBoardId}`, JSON.stringify(updated));
+        localStorage.setItem('frames-global', JSON.stringify(updated));
+      }
+      return updated;
+    });
     const frame = frames.find((f) => f.id === id);
     if (frame) {
       await saveSingleLocalFrame({ ...frame, ...updates });
@@ -292,7 +435,14 @@ export default function StickyNotesAppPage() {
   };
 
   const handleDeleteFrame = async (id: string) => {
-    setFrames((prev) => prev.filter((f) => f.id !== id));
+    setFrames((prev) => {
+      const updated = prev.filter((f) => f.id !== id);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`frames-${currentBoardId}`, JSON.stringify(updated));
+        localStorage.setItem('frames-global', JSON.stringify(updated));
+      }
+      return updated;
+    });
     await deleteLocalFrame(id);
     fetch(`/api/frames?id=${id}`, { method: 'DELETE' }).catch((err) =>
       console.error('Failed to delete frame:', err)
@@ -571,9 +721,10 @@ export default function StickyNotesAppPage() {
         user={user}
         notes={notes}
         workspaceUsers={workspaceUsers}
+        presences={activePresences}
         boards={boards}
         currentBoardId={currentBoardId}
-        onSelectBoard={setCurrentBoardId}
+        onSelectBoard={handleSelectBoard}
         onCreateBoard={handleCreateBoard}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
@@ -592,6 +743,7 @@ export default function StickyNotesAppPage() {
         onToggleArchived={() => setShowArchived(!showArchived)}
         deletedCount={deletedNotes.length}
         onOpenTrashBin={() => setShowTrashBin(true)}
+        onOpenActivityFeed={() => setShowActivityFeed(true)}
         onAutoArrange={handleAutoArrange}
         onExportJSON={() => exportBoardToJSON(filteredNotes, boardName)}
         onExportMarkdown={() => exportBoardToMarkdown(filteredNotes, boardName)}
@@ -601,7 +753,7 @@ export default function StickyNotesAppPage() {
         syncing={syncing}
         theme={theme}
         themeVariant={themeVariant}
-        onSelectThemeVariant={(variant: any) => setThemeVariant(variant)}
+        onSelectThemeVariant={(variant: any) => handleSelectThemeVariant(variant)}
         onToggleTheme={toggleTheme}
         onCreateNote={handleCreateNewNote}
         onSelectNote={(note) => setEditingNote(note)}
@@ -616,10 +768,14 @@ export default function StickyNotesAppPage() {
         themeVariant={themeVariant}
         connections={connections}
         frames={frames}
+        presences={activePresences}
         onSelectNote={handleSelectNote}
         onClearSelection={handleClearSelection}
         onSetSelection={handleSetSelection}
-        onUpdateNotePosition={(id, x, y) => updateNote(id, { position_x: x, position_y: y })}
+        onUpdateNotePosition={(id, x, y) => {
+          updateNote(id, { position_x: x, position_y: y });
+          broadcastNoteMove(id, x, y);
+        }}
         onBatchUpdatePositions={handleBatchUpdatePositions}
         onEditNote={setEditingNote}
         onDeleteNote={deleteNote}
@@ -636,6 +792,8 @@ export default function StickyNotesAppPage() {
         onBatchAlign={handleBatchAlign}
         onCreateNoteWithImage={handleCreateNoteWithImage}
         onAttachImage={handleAttachImageToNote}
+        onOpenComments={(note) => setCommentingNote(note)}
+        onStickerChange={(id, sticker) => updateNote(id, { sticker: sticker || undefined })}
         onCreateConnection={handleCreateConnection}
         onUpdateConnection={handleUpdateConnection}
         onDeleteConnection={handleDeleteConnection}
@@ -662,6 +820,20 @@ export default function StickyNotesAppPage() {
         note={sharingNote}
         isOpen={Boolean(sharingNote)}
         onClose={() => setSharingNote(null)}
+      />
+
+      {/* Note Comments Drawer Modal */}
+      <NoteCommentsDrawer
+        note={commentingNote}
+        isOpen={Boolean(commentingNote)}
+        onClose={() => setCommentingNote(null)}
+        workspaceUsers={workspaceUsers}
+      />
+
+      {/* Workspace Activity Feed Modal */}
+      <ActivityFeedModal
+        isOpen={showActivityFeed}
+        onClose={() => setShowActivityFeed(false)}
       />
 
       {/* User Management Modal */}
@@ -705,6 +877,10 @@ export default function StickyNotesAppPage() {
         onMarkComplete={handleMarkCompleteAlarm}
         onDismiss={handleDismissAlarm}
       />
+
+      {/* Custom PWA Install Experience Banner */}
+      <PWAInstallBanner />
     </main>
   );
 }
+

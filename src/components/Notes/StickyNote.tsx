@@ -3,8 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { Note } from '@/lib/types';
-import { Pin, Share2, Trash2, Edit3, Lock, Unlock, Archive, User as UserIcon, Calendar, Tag } from 'lucide-react';
+import { Pin, Share2, Trash2, Edit3, Lock, Unlock, Archive, User as UserIcon, Calendar, Tag, MessageSquare, Sparkles } from 'lucide-react';
 import { sanitizeHtml } from '@/lib/sanitize';
+import { PRESET_STICKERS, StickerPicker } from './StickerPicker';
 
 interface StickyNoteProps {
   note: Note;
@@ -20,6 +21,8 @@ interface StickyNoteProps {
   onBringToFront: (id: string) => void;
   onAttachImage?: (id: string, base64Image: string) => void;
   onStartConnect?: (id: string) => void;
+  onOpenComments?: (note: Note) => void;
+  onStickerChange?: (id: string, sticker: string | null) => void;
 }
 
 export const StickyNote: React.FC<StickyNoteProps> = ({
@@ -36,16 +39,22 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
   onBringToFront,
   onAttachImage,
   onStartConnect,
+  onOpenComments,
+  onStickerChange,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [isLocked, setIsLocked] = useState(note.is_locked || false);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [showStickerPicker, setShowStickerPicker] = useState(false);
 
   useEffect(() => {
     if (note.is_locked !== undefined) {
       setIsLocked(note.is_locked);
     }
   }, [note.is_locked]);
+
+  const stickerIcon = PRESET_STICKERS.find((s) => s.id === note.sticker)?.icon;
+
 
   const handleLockToggle = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -194,47 +203,72 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
       {/* Pushpin if pinned */}
       {note.is_pinned && <div className="pushpin" title="Pinned to top" />}
 
-      {/* Selection Checkbox Toggle */}
-      {onSelectToggle && (isHovered || isSelected) && (
+      {/* Selected Badge Indicator (only shown when selected) */}
+      {isSelected && (
         <div
-          onClick={(e) => {
-            e.stopPropagation();
-            onSelectToggle(note.id, e.shiftKey);
-          }}
-          title={isSelected ? 'Deselect note' : 'Select note (Shift+Click to multi-select)'}
+          title="Selected note"
           style={{
             position: 'absolute',
-            top: '8px',
-            left: '8px',
+            top: '6px',
+            left: '6px',
             width: '20px',
             height: '20px',
             borderRadius: '50%',
-            backgroundColor: isSelected ? '#1976d2' : 'rgba(255,255,255,0.85)',
-            border: isSelected ? '2px solid #fff' : '2px solid rgba(0,0,0,0.3)',
+            backgroundColor: '#1976d2',
+            border: '2px solid #fff',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            cursor: 'pointer',
-            zIndex: 10,
+            zIndex: 30,
             boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
           }}
         >
-          {isSelected && <span style={{ color: '#fff', fontSize: '11px', fontWeight: 'bold' }}>✓</span>}
+          <span style={{ color: '#fff', fontSize: '11px', fontWeight: 'bold' }}>✓</span>
         </div>
       )}
 
+
       {/* Note Header */}
-      <div className="note-header" style={{ marginTop: note.is_pinned ? '6px' : '0', paddingLeft: (isHovered || isSelected) && onSelectToggle ? '24px' : '0' }}>
-        <h3 className="note-title">{note.title || 'Untitled Note'}</h3>
+      <div className="note-header" style={{ marginTop: note.is_pinned ? '6px' : '0' }}>
+
+        <h3 className="note-title" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          {stickerIcon && <span style={{ fontSize: '1rem' }} title={`Sticker: ${note.sticker}`}>{stickerIcon}</span>}
+          {note.title || 'Untitled Note'}
+        </h3>
         <div
           style={{
             display: 'flex',
             gap: '2px',
             opacity: isHovered || isSelected ? 1 : 0.3,
             transition: 'opacity 0.2s ease',
+            position: 'relative',
           }}
           onClick={(e) => e.stopPropagation()}
         >
+          {onStickerChange && (
+            <button
+              className="btn-icon"
+              style={{ width: '26px', height: '26px' }}
+              title="Stamp Sticker Badge"
+              onClick={() => setShowStickerPicker(!showStickerPicker)}
+            >
+              <Sparkles size={13} style={{ color: note.sticker ? '#f59e0b' : '#666' }} />
+            </button>
+          )}
+
+          {showStickerPicker && onStickerChange && (
+            <div style={{ position: 'absolute', top: '30px', right: 0, zIndex: 100 }}>
+              <StickerPicker
+                currentSticker={note.sticker}
+                onSelectSticker={(sticker) => {
+                  onStickerChange(note.id, sticker);
+                  setShowStickerPicker(false);
+                }}
+                onClose={() => setShowStickerPicker(false)}
+              />
+            </div>
+          )}
+
           <button
             className="btn-icon"
             style={{ width: '26px', height: '26px' }}
@@ -418,6 +452,38 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
             transition: 'all 0.2s ease',
           }}
         >
+          {onOpenComments && (
+            <button
+              className="btn-icon"
+              style={{ width: '24px', height: '24px', position: 'relative' }}
+              title="Open Comments Thread"
+              onClick={() => onOpenComments(note)}
+            >
+              <MessageSquare size={12} />
+              {note.comments_count && note.comments_count > 0 ? (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: '-2px',
+                    right: '-2px',
+                    width: '12px',
+                    height: '12px',
+                    borderRadius: '50%',
+                    background: '#3b82f6',
+                    color: '#fff',
+                    fontSize: '8px',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {note.comments_count}
+                </span>
+              ) : null}
+            </button>
+          )}
+
           {(note.permission === 'owner' || note.is_admin_view) && (
             <button
               className="btn-icon"
@@ -448,6 +514,7 @@ export const StickyNote: React.FC<StickyNoteProps> = ({
           )}
         </div>
       </div>
+
     </div>
   );
 };

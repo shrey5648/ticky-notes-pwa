@@ -105,7 +105,7 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id, name, color } = await req.json();
+    const { id, name, color, theme_variant } = await req.json();
     if (!id || !name || !name.trim()) {
       return NextResponse.json({ error: 'Board ID and name are required' }, { status: 400 });
     }
@@ -126,9 +126,13 @@ export async function PUT(req: Request) {
         return NextResponse.json({ error: 'Forbidden: Only board owner or admin can update' }, { status: 403 });
       }
 
+      const updates: any = { name: name.trim() };
+      if (color) updates.color = color;
+      if (theme_variant) updates.theme_variant = theme_variant;
+
       const { data, error } = await supabaseAdmin
         .from('boards')
-        .update({ name: name.trim(), color })
+        .update(updates)
         .eq('id', id)
         .select()
         .single();
@@ -150,6 +154,7 @@ export async function PUT(req: Request) {
 
       mockBoards[index].name = name.trim();
       if (color) mockBoards[index].color = color;
+      if (theme_variant) mockBoards[index].theme_variant = theme_variant;
       saveStore();
 
       return NextResponse.json({ board: mockBoards[index] });
