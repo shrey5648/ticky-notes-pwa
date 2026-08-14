@@ -26,11 +26,12 @@ export async function GET(req: Request) {
         .select('*')
         .order('created_at', { ascending: true });
 
-      if (error || !dbBoards || dbBoards.length === 0) {
-        return NextResponse.json({ boards: [DEFAULT_BOARD, ...(dbBoards || [])] });
+      if (error) {
+        console.error('GET boards database error:', error);
+        return NextResponse.json({ boards: [DEFAULT_BOARD] });
       }
 
-      return NextResponse.json({ boards: dbBoards });
+      return NextResponse.json({ boards: [DEFAULT_BOARD, ...(dbBoards || [])] });
     } else {
       if (mockBoards.length === 0) {
         mockBoards.push({ ...DEFAULT_BOARD, owner_id: user.id });
@@ -111,6 +112,17 @@ export async function PUT(req: Request) {
     }
 
     if (isSupabaseConfigured()) {
+      if (id === 'board-default') {
+        return NextResponse.json({
+          board: {
+            ...DEFAULT_BOARD,
+            name: name.trim(),
+            color: color || DEFAULT_BOARD.color,
+            theme_variant: theme_variant || DEFAULT_BOARD.theme_variant,
+          }
+        });
+      }
+
       // Verify ownership before updating
       const { data: board } = await supabaseAdmin
         .from('boards')
