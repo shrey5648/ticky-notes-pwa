@@ -1,0 +1,83 @@
+@import "katex/dist/katex.min.css";
+@import "highlight.js/styles/github-dark.min.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Palette is raw RGB triples so Tailwind's <alpha-value> works against every
+     token (bg-surface/60, ring-accent/40, and so on). */
+  :root {
+    --bg: 250 250 250;
+    --surface: 255 255 255;
+    --elevated: 244 244 245;
+    --border: 228 228 231;
+    --fg: 24 24 27;
+    --muted: 113 113 122;
+    --accent: 59 130 246;
+    --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+
+  .dark {
+    --bg: 9 9 11;
+    --surface: 24 24 27;
+    --elevated: 39 39 42;
+    --border: 63 63 70;
+    --fg: 244 244 245;
+    --muted: 161 161 170;
+    --accent: 96 165 250;
+  }
+
+  html {
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-bg text-fg antialiased;
+    font-family: var(--font-sans);
+  }
+
+  /* Standalone PWA windows have no browser chrome to pull back from, so the
+     app must not rubber-band or navigate on overscroll. */
+  @media (display-mode: standalone) {
+    body {
+      overscroll-behavior: none;
+    }
+  }
+
+  ::selection {
+    @apply bg-accent/25;
+  }
+}
+
+@layer utilities {
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-border;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+/* highlight.js ships its own background; let the prose block own it instead so
+   code blocks match the surrounding surface in both themes. */
+.hljs {
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+/* KaTeX renders at its own scale, which reads oversized inside prose-sm. */
+.katex {
+  font-size: 1.05em;
+}

@@ -1,0 +1,20 @@
+{
+  "name": "S Notes — Personal Knowledge Base",
+  "short_name": "S Notes",
+  "description": "A local-first Markdown workspace with bi-directional links, Kanban boards, and a code vault.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#09090b",
+  "theme_color": "#09090b",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Code Vault", "short_name": "Snippets", "url": "/snippets" }
+  ]
+}

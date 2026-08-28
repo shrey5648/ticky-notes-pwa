@@ -1,0 +1,61 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Role lives in a custom claim set by the Admin SDK, so it is signed into
+    // the ID token and cannot be forged or self-assigned by a client.
+    function isAdmin() {
+      return request.auth != null && request.auth.token.role == 'admin';
+    }
+
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    // A user owns everything under their own uid.
+    //
+    // Admins additionally get READ across all workspaces. Write stays
+    // owner-only on purpose: an admin should be able to investigate content,
+    // not silently alter someone's notes. Account-level actions (role,
+    // disable, delete) go through the server routes instead.
+    match /users/{userId}/{document=**} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isOwner(userId);
+    }
+
+    // Public read-only sharing. Widens read for published documents only;
+    // grants no write.
+    match /users/{userId}/notes/{noteId} {
+      allow read: if resource.data.isPublic == true;
+    }
+
+    match /users/{userId}/snippets/{snippetId} {
+      allow read: if resource.data.isPublic == true;
+    }
+
+    // Slug -> {uid, entityId, kind} index, so /share/[slug] can resolve a link
+    // without knowing whose workspace it belongs to. Readable by anyone holding
+    // the (unguessable) slug; writable only by the owner it names.
+    match /shares/{slug} {
+      allow read: if true;
+      allow create, update: if request.auth != null
+        && request.resource.data.uid == request.auth.uid;
+      allow delete: if request.auth != null
+        && resource.data.uid == request.auth.uid;
+    }
+
+    // Directory mirror of Auth, so the admin console can list and sort users.
+    // Only the server (Admin SDK, which bypasses rules entirely) writes here.
+    match /userProfiles/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow write: if false;
+    }
+
+    // One-time sign-in codes. Hashed, short-lived, and never touched by a
+    // client — only the OTP routes read or write them via the Admin SDK.
+    match /otpCodes/{id} {
+      allow read, write: if false;
+    }
+  }
+}
