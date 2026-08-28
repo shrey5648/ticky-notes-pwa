@@ -1,38 +1,13 @@
-# dependencies
-/node_modules
-/.pnpm-store
-
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-
-# local env files
-.env*.local
+node_modules
+.next
+out
+dist
 .env
-
-# vercel
-.vercel
-
-# typescript
+.env.local
 *.tsbuildinfo
 next-env.d.ts
-
-# IDE & OS files
+public/sw.js
+public/workbox-*.js
+public/sw.js.map
+public/workbox-*.js.map
 .DS_Store
-*.pem
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# local data store (contains password hashes)
-/data/
