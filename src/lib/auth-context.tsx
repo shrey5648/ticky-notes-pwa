@@ -10,10 +10,12 @@ import {
   type ReactNode,
 } from "react";
 import {
+  getRedirectResult,
   onAuthStateChanged,
   signInAnonymously,
   signInWithCustomToken,
   signInWithPopup,
+  signInWithRedirect,
   signOut,
   type User,
 } from "firebase/auth";
@@ -62,6 +64,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     []
   );
+
+  // Completes a redirect sign-in started by signInGoogle. Harmless (resolves
+  // null) on every normal load.
+  useEffect(() => {
+    if (!isFirebaseConfigured) return;
+    getRedirectResult(auth).catch((error) => {
+      console.error("[auth] redirect sign-in failed", error);
+    });
+  }, []);
 
   useEffect(() => {
     if (!isFirebaseConfigured) {
@@ -119,8 +130,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
 
       async signInGoogle() {
-        const credential = await signInWithPopup(auth, googleProvider);
-        setRole(await readRole(credential.user, true));
+        try {
+          const credential = await signInWithPopup(auth, googleProvider);
+          setRole(await readRole(credential.user, true));
+        } catch (error) {
+          // An installed PWA has no browser chrome to host a popup, and some
+          // browsers block cross-origin popup storage outright. Redirect is
+          // the only flow that works there, so fall back rather than dead-end.
+          // Navigation replaces this document; the result is picked up by
+          // getRedirectResult on the way back.
+          if (!isPopupUnsupported(error)) throw error;
+          await signInWithRedirect(auth, googleProvider);
+        }
       },
 
       async signInGuest() {
@@ -185,6 +206,19 @@ export function useApiFetch() {
   );
 }
 
+/** Errors that mean "this browser/context can't do a popup", not "auth failed". */
+function isPopupUnsupported(error: unknown): boolean {
+  const code =
+    typeof error === "object" && error && "code" in error
+      ? String((error as { code: unknown }).code)
+      : "";
+  return (
+    code === "auth/popup-blocked" ||
+    code === "auth/operation-not-supported-in-this-environment" ||
+    code === "auth/web-storage-unsupported"
+  );
+}
+
 /** Maps Firebase auth error codes to messages worth showing a user. */
 export function authErrorMessage(error: unknown): string {
   const code =
@@ -197,6 +231,14 @@ export function authErrorMessage(error: unknown): string {
     case "auth/popup-closed-by-user":
     case "auth/cancelled-popup-request":
       return "Sign-in window was closed.";
+    case "auth/unauthorized-domain":
+      // Names the host that has to be allowlisted; without it this error sends
+      // you hunting through the console for a value you already have.
+      return `This site's domain (${
+        typeof window === "undefined" ? "unknown" : window.location.hostname
+      }) isn't in the Firebase Authentication authorized-domains list.`;
+    case "auth/popup-blocked":
+      return "Your browser blocked the sign-in window.";
     case "auth/operation-not-allowed":
       return "That sign-in method isn't enabled in your Firebase project.";
     case "auth/configuration-not-found":
