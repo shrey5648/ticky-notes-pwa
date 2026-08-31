@@ -61,10 +61,8 @@ export const BUILTIN_TEMPLATES: BuiltinTemplate[] = [
 
 ## Action Items
 - [ ] Owner — task — due
-- [ ]
 
 ## Related
-- [[ ]]
 `,
   },
   {
@@ -155,12 +153,11 @@ interface Example {
 | | | |
 
 ## Rollout Plan
-- [ ]
+- [ ] Step one
 
 ## Alternatives Considered
 
 ## References
-- [[ ]]
 `,
   },
 ];

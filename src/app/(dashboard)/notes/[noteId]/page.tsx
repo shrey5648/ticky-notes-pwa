@@ -10,7 +10,7 @@ import {
   useNotes,
   useProjects,
 } from "@/lib/firestore-hooks";
-import { MarkdownEditor, type ViewMode } from "@/components/editor/MarkdownEditor";
+import { NoteEditor, type ViewMode } from "@/components/editor/NoteEditor";
 import { BacklinksFooter } from "@/components/editor/BacklinksFooter";
 import { Button, EmptyState, Spinner, Tooltip } from "@/components/ui";
 
@@ -23,7 +23,7 @@ export default function NotePage() {
   const { projects } = useProjects(true);
   const actions = useNoteActions();
 
-  const [mode, setMode] = useState<ViewMode>("edit");
+  const [mode, setMode] = useState<ViewMode>("rich");
   const [shareUrl, setShareUrl] = useState<string | null>(null);
 
   // window is unavailable during SSR, so the absolute share URL is built after
@@ -147,7 +147,7 @@ export default function NotePage() {
         </div>
       ) : null}
 
-      <MarkdownEditor
+      <NoteEditor
         note={note}
         allNotes={notes}
         mode={mode}
